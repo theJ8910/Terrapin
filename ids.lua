@@ -1,0 +1,7 @@
+VECTOR = 0
+POINT  = 1
+RECT   = 2
+MAP    = 3
+CHUNK  = 4
+WORKER = 5
+BUFFER = 6
