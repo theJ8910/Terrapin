@@ -1,4 +1,5 @@
-require( "class" )
+require( "serialize" )
+require( "ids" )
 
 local c = {}
 

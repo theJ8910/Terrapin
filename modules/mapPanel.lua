@@ -1,4 +1,3 @@
-require( "class" )
 require( "vector" )
 require( "panel" )
 
@@ -110,6 +109,14 @@ function c:draw( context )
         p.x = xbegin
         p.z = p.z + 1
     end
+
+    --Controls
+    local hw = math.floor( w / 2 )
+    local hh = math.floor( h / 2 )
+    context:draw( 0,   hh,  "<", colors.red, colors.black )
+    context:draw( w-1, hh,  ">", colors.red, colors.black )
+    context:draw( hw,  0,   "^", colors.red, colors.black )
+    context:draw( hw,  h-1, "v", colors.red, colors.black )
 end
 
 class.register( "mapPanel", c, "panel" )

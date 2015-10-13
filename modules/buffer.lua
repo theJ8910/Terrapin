@@ -1,4 +1,3 @@
-require( "class" )
 require( "point" )
 require( "rect" )
 require( "util" )
@@ -160,7 +159,7 @@ function c:init( buffer )
     
     self.bg        = colors.black
     self.fg        = colors.black
-    self.c         = " "
+    self.c         = string.byte( " " )
     self.translate = new.point( 0, 0 )
     self.rect      = new.rect( 0, 0, s.width, s.height )
 end

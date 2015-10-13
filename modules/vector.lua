@@ -1,6 +1,6 @@
-require( "class" )
 require( "serialize" )
 require( "ids" )
+
 local c = {}
 
 function c:init( x, y, z )

@@ -1,4 +1,3 @@
-require( "class" )
 require( "buffer" )
 
 local c = {}
@@ -25,6 +24,10 @@ end
 
 --Fully redraws the screen
 function c:redraw()
+    local size = self.fb:getSize()
+    print( size.width )
+    print( size.height )
+    --[[
     self:swapBuffers()
     
     local ch, fg, bg
@@ -38,6 +41,7 @@ function c:redraw()
             term.write( ch )
         end
     end
+    ]]--
 end
 
 --Draws changes to the screen

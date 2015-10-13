@@ -1,4 +1,3 @@
-require( "class" )
 require( "rect" )
 
 --panel
@@ -93,7 +92,7 @@ function c:setBounds( r )
     self.bounds = r
     
     if old ~= r then
-        panel.needsUpdate()
+        needsUpdate()
     end
 end
 

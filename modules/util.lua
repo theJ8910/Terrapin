@@ -1,3 +1,4 @@
+--Prints a human readable version of the given table, showing 10 rows at a time.
 function printTable( tbl )
     local keyWidth   = 5
     local valueWidth = 5
@@ -48,7 +49,7 @@ function truncate( value )
     end
 end
 
---
+--Limits the given value to the range [min,max] and returns it.
 function clamp( value, min, max )
     if value < min then return min end
     if value > max then return max end

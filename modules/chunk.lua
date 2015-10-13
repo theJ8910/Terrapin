@@ -1,6 +1,5 @@
-require("class")
-require("serialize")
-require("ids")
+require( "serialize" )
+require( "ids" )
 
 --Returns a unique hash of the given vector
 local function hashPos( v )

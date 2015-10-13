@@ -1,4 +1,3 @@
-require( "class" )
 require( "chunk" )
 require( "vector" )
 require( "util" )

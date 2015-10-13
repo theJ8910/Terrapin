@@ -1,4 +1,3 @@
-require( "class" )
 require( "panel" )
 
 local c = {}

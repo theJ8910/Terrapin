@@ -1,5 +1,3 @@
-require( "class" )
-
 --Type IDs
 local NIL     = 0
 local BOOLEAN = 1
@@ -87,15 +85,16 @@ local function writeTable( writer, value )
     end
 end
 
-local function writeObjectBase( writer, value )
+local function writeSharedObjectBase( writer, value )
     local id = writer.objectIDs[ value ]
     if id ~= nil then
         writer:writeUnsignedInt32( id )
-        return
+        return true
     end
     writer.objectCounter = writer.objectCounter + 1
     id = writer.objectCounter
     writer.objectIDs[ value ] = id
+    return false
 end
 
 --Maps a string returned by the type() function to a function that can write it
@@ -285,6 +284,17 @@ function c:readString()
 end
 
 function c:readTable()
+    --Read the count so we know how many rows are in the table
+    local count = self:readUnsignedInt32()
+    
+    --Read the key and value of the table
+    for i = 1, count do
+        t[self:read()] = self:read()
+    end
+    return t
+end
+
+function c:readSharedTable()
     --Get the instance ID of the table before we read it.
     --If we've already read a table with this ID, we simply return a reference
     --to the existing table. Doing this not only saves space, but also correctly
@@ -300,20 +310,33 @@ function c:readTable()
     t = {}
     self.tablesByID[ id ] = t
     
-    --Read the count so we know how many rows are in the table
-    local count = self:readUnsignedInt32()
-    
-    --Read the key and value of the table
-    for i = 1, count do
-        t[self:read()] = self:read()
-    end
-    return t
+    self:readTable()
 end
 
 --Reads an object whose type is known ahead of time.
 --The serial ID of the object needs to be supplied via the serialID parameter,
 --so that the reader knows what kind of object to instantiate.
 function c:readObject( serialID )
+    obj = newSerializedObject( serialID )
+    obj:load( self )
+
+    return obj
+end
+
+--Reads an object whose type is not known ahead of time.
+--The serialID of the object is supplied from the reader
+--prior to creating and reading the data for the object.
+function c:readAnyObject()
+    obj = newSerializedObject( self:readUnsignedInt16() )
+    obj:load( self )
+
+    return obj
+end
+
+--Same as readObject, with one exception.
+--An Object ID# is read first, and if an object with this Object ID# has been read before,
+--it will return this object instead of creating a new one.
+function c:readSharedObject( serialID )
     local id  = self:readUnsignedInt32()
     local obj = self.objectsByID[id]
     if obj ~= nil then
@@ -327,10 +350,10 @@ function c:readObject( serialID )
     return obj
 end
 
---Reads an object whose type is not known ahead of time.
---The serialID of the object is supplied from the reader
---prior to creating and reading the data for the object.
-function c:readAnyObject()
+--Same as readAnyObject, with one exception.
+--An Object ID# is read first, and if an object with this Object ID# has been read before,
+--it will return this object instead of creating a new one.
+function c:readAnySharedObject()
     local id  = self:readUnsignedInt32()
     local obj = self.objectsByID[id]
     if obj ~= nil then
@@ -554,6 +577,21 @@ function c:writeString( value )
 end
 
 function c:writeTable( value, ignoreNonSerialData )
+    --Write a count the number of entries in the table
+    local size = 0
+    for k, v in pairs( value ) do
+        size = size + 1
+    end
+    self:writeUnsignedInt32( size )
+
+    --For each key and value in the table, write an identifying byte followed by the key/value's serialized form.
+    for k, v in pairs( value ) do
+        self:write( k )
+        self:write( v )
+    end
+end
+
+function c:writeSharedTable( value, ignoreNonSerialData )
     --If the table has been written before, we can write just the instance ID
     --and nothing more, since the contents have already been recorded.
     local id = self.tableIDs[ value ]
@@ -570,36 +608,37 @@ function c:writeTable( value, ignoreNonSerialData )
     --Write the table's instance ID
     self:writeUnsignedInt32( id )
     
-    --Write a count the number of entries in the table
-    local size = 0
-    for k, v in pairs( value ) do
-        size = size + 1
-    end
-    self:writeUnsignedInt32( size )
-    
-    --For each key and value in the table, write an identifying byte followed by the key/value's serialized form.
-    for k, v in pairs( value ) do
-        self:write( k )
-        self:write( v )
-    end
-
+    self:writeTable( value, ignoreNonSerialData )
 end
 
 --Writes an object without including the serial ID of the object
 --Code that loads the object is expected to know what type of object it is ahead of time.
 function c:writeObject( value )
-    writeObjectBase( self, value )
-    
-    self:writeUnsignedInt32( id )
     value:save( self )
 end
 
 --Writes an object, including the serial ID of the object.
 --Code that loads the object does not need to know the type of the object ahead of time.
 function c:writeAnyObject( value )
-    writeObjectBase( self, value )
+    self:writeUnsignedInt16( value:getSerialID() )
+    value:save( self )
+end
+
+--Same as writeObject, with one exception.
+--An Object ID# is written first, and if an object with this Object ID# has been written before,
+--nothing further is written.
+function c:writeSharedObject( value )
+    if writeSharedObjectBase( self, value ) then return end
     
-    self:writeUnsignedInt32( id )    
+    value:save( self )
+end
+
+--Same as writeAnySharedObject, with one exception.
+--An Object ID# is written first, and if an object with this Object ID# has been written before,
+--nothing further is written.
+function c:writeAnySharedObject( value )
+    if writeSharedObjectBase( self, value ) then return end
+    
     self:writeUnsignedInt16( value:getSerialID() )
     value:save( self )
 end

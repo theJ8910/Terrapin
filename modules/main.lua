@@ -1,4 +1,5 @@
 require( "map" )
+require( "panel" )
 require( "mapPanel" )
 require( "graphics" )
 require( "vector" )
@@ -55,7 +56,7 @@ function scheduler()
     end
 end
 
-function main()
+function __main()
     --When a panel is updated, tell us so we know to redraw
     panel.addUpdateListener( function() changed = true end )
     

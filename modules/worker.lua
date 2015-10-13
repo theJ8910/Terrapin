@@ -3,9 +3,6 @@ require( "orient" )
 require( "serialize" )
 require( "ids" )
 
-local workerfn = {}
-local workermt = { ["__index"] = workerfn }
-
 local workers = {}
 
 --Job types
@@ -16,71 +13,60 @@ SCOUTING     = 3      --Scouts have sonic sensors they can use to detect several
 EXPERT       = 4      --Experts can (attempt to) identify what specific blocks are by comparing their inventory with them
 CONSTRUCTION = 5      --Builders can build things
 
-function new()
-    local t = {}
-    setmetatable( t, workermt )
-    
-    --Keep track of computer / turtle's current position / facing direction
-    t.pos  = vector.new( 0, 0, 0 )
-    t.dir  = orient.EAST
-    t.jobs = {}
-    
-    table.insert( workers, t )
-    
-    return t
-end
+local c = {}
 
 function getAll()
     return workers
 end
 
-function workerfn:setPos( pos )
+function c:init()
+    --Keep track of computer / turtle's current position / facing direction
+    self.pos  = new.vector( 0, 0, 0 )
+    self.dir  = orient.EAST
+    self.jobs = {}
+
+    table.insert( workers, t )
+end
+
+function c:setPos( pos )
     self.pos = pos
 end
 
-function workerfn:getPos()
+function c:getPos()
     return self.pos
 end
 
-function workerfn:setDir( dir )
+function c:setDir( dir )
     self.dir = dir
 end
 
-function workerfn:getDir()
+function c:getDir()
     return self.dir
 end
 
-function workerfn:addJob( job )
+function c:addJob( job )
     self.jobs[ job ] = true
 end
 
-function workerfn:removeJob( job )
+function c:removeJob( job )
     self.jobs[ job ] = nil
 end
 
-function workerfn:getJobs()
+function c:getJobs()
     return self.jobs
 end
 
-function workerfn:getSerialID()
+function c:getSerialID()
     return ids.WORKER
 end
 
-function workerfn:save( writer )
-    writer:writeNumber( self.pos.x )
-    writer:writeNumber( self.pos.y )
-    writer:writeNumber( self.pos.z )
-    
+function c:save( writer )
+    writer:writeObject( self.pos )
     writer:writeUnsignedInt8( self.dir )
 end
 
-function workerfn:load( reader )
-    self.pos = vector.new(
-        reader:readNumber(),
-        reader:readNumber(),
-        reader:readNumber()
-    )
-    
+function c:load( reader )
+    self.pos = reader:readObject( ids.VECTOR )
     self.dir = reader:readUnsignedInt8()
 end
 
