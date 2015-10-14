@@ -43,9 +43,16 @@ local colorEnumToColor = {
     [15] = colors.black
 }
 
---Returns a 16-bit encoding for the combination of a character, foreground color, and background color
-local function getEncoding( c, fg, bg )
+--Returns a 16-bit encoding for the combination of a character code, foreground color, and background color
+function encode( c, fg, bg )
     return c + 256*colorToColorEnum[fg] + 4096*colorToColorEnum[bg]
+end
+
+--Returns the character, foreground color, and background color of the given encoding.
+function decode( encoding )
+    return string.char(                    encoding % 256   )           ,
+           colorEnumToColor[ math.floor( ( encoding % 4096  ) / 256  ) ],
+           colorEnumToColor[ math.floor( ( encoding % 65536 ) / 4096 ) ]
 end
 
 --Compares two buffers of the same size cell by cell.
@@ -75,20 +82,34 @@ function c:init( w, h )
     }
     
     for i = 0, w * h - 1 do
-        self[ i ] = 61472      --space character, white foreground, black background
+        self[ i ] = 61472      --space character, white foreground, black background, no update
     end
-    
     return t
+end
+
+--Iterates over the update buffer and calls fn( x, y ) for each cell marked as being updated.
+function c:forEachUpdate( fn )
+    local w = self.size.width
+    for i = 0, w * self.size.height - 1 do
+        if bit.band( self[i], 65536 ) then fn( i % w, math.floor( i / w ) ) end
+    end
+end
+
+--Clears the update buffer
+function c:clearUpdates()
+    for i = 0, self.size.width * self.size.height - 1 do
+        self[ i ] = bit.band( self[i], 65535 )
+    end
 end
 
 function c:setSize( size )
     local newCount = size.width * size.height
     local oldCount = self.size.width * self.size.height
     self.size = size
-    
+
     --Clear buffer
     for i = 0, newCount - 1 do
-        self[ i ] = 61472
+        self[ i ] = 127008      --space character, white foreground, black background, has update
     end
     
     --Delete any remaining unused stuff
@@ -105,16 +126,21 @@ end
 --Note: If the foreground and background color match, interpret this as the cell having a transparent background
 --Note: 0,0 is the upper-left corner
 function c:set( x, y, c, fg, bg )
-    self[ x + y * self.size.width ] = getEncoding( c, fg, bg )
+    self:rawset( x + y * self.size.width, encode( c, fg, bg ) )
+end
+
+--Same as set, but takes an index i instead of x, y coords.
+function c:rawset( i, encoding )
+    --No change
+    if bit.band( self[ i ], 65535 ) == encoding then return end
+
+    self[ i ] = bit.bor( encoding, 65536 )
 end
 
 --Returns the character, foreground color, and background color used for the pixel at x, y
 --Note: 0,0 is the upper-left corner
 function c:get( x, y )
-    local value = self[ x + y * self.size.width ]
-    return string.char( value % 256 ),
-           colorEnumToColor[ math.floor( ( value % 4096 ) / 256  ) ],
-           colorEnumToColor[ math.floor(   value          / 4096 ) ]
+    return decode( self[ x + y * self.size.width ] )
 end
 
 function c:getSerialID()
@@ -125,7 +151,7 @@ function c:save( writer )
     writer:writeUnsignedInt16( self.size.width )
     writer:writeUnsignedInt16( self.size.height )
     for i = 0, self.size.width * self.size.width - 1 do
-        writer:writeUnsignedInt16( self[i] )
+        writer:writeUnsignedInt16( bit.band( self[i], 65535 ) )
     end
 end
 
@@ -157,11 +183,12 @@ function c:init( buffer )
     self.buffer     = buffer
     self.stateStack = {}
     
+    self.fg        = colors.white
     self.bg        = colors.black
-    self.fg        = colors.black
     self.c         = string.byte( " " )
+
     self.translate = new.point( 0, 0 )
-    self.rect      = new.rect( 0, 0, s.width, s.height )
+    self.clip      = new.rect( 0, 0, s.width, s.height )
 end
 
 function c:draw( x, y )
@@ -170,7 +197,7 @@ function c:draw( x, y )
     y = y + self.translate.y
     
     --Don't allow drawing outside of the rectangle
-    if not self.rect:contains( x, y ) then return end
+    if not self.clip:contains( x, y ) then return end
     
     --Draw it in the underlying buffer
     self.buffer:set( x, y, self.c, self.fg, self.bg )
@@ -180,21 +207,21 @@ end
 function c:drawRectangle( left, top, right, bottom )
     local b = self.buffer
     local w = b.size.width
-    local enc = getEncoding( self.c, self.fg, self.bg )
+    local enc = encode( self.c, self.fg, self.bg )
     
     --Shift the rectangle by "translate",
     --Then get the intersect (sort of; even if they don't intersect, it returns a rectangle with a 0 width and/or height)
     --of the given rectangle and the clipping rectangle
-    left   = util.clamp( left   + self.translate.x, self.rect.l, self.rect.r )
-    top    = util.clamp( top    + self.translate.y, self.rect.t, self.rect.b )
-    right  = util.clamp( right  + self.translate.x, self.rect.l, self.rect.r )
-    bottom = util.clamp( bottom + self.translate.y, self.rect.t, self.rect.b )
+    left   = util.clamp( left   + self.translate.x, self.clip.l, self.clip.r )
+    top    = util.clamp( top    + self.translate.y, self.clip.t, self.clip.b )
+    right  = util.clamp( right  + self.translate.x, self.clip.l, self.clip.r )
+    bottom = util.clamp( bottom + self.translate.y, self.clip.t, self.clip.b )
     
     local i
     for y=top, bottom-1 do
         i = y * w
         for x=left, right-1 do
-            b[i] = enc
+            b:rawset( i, enc )
             i = i + 1
         end
     end
@@ -206,24 +233,25 @@ function c:drawText( x, y, str )
     y = y + self.translate.y
     
     --Don't allow drawing outside of the clipping rectangle
-    if y < self.rect.t and y >= self.rect.b then return false end
+    if y < self.clip.t and y >= self.clip.b then return false end
     
     --Clip written text. Detect where the first character will be drawn
-    local xBegin = util.clamp( x, self.rect.l, self.rect.r )
+    local xBegin = util.clamp( x, self.clip.l, self.clip.r )
     
     --Determine the indices of the first and last characters to be drawn in the string,
     --with 1 being the first character in the string, 2 being the second, etc
     --These could potentially be invalid indices if the entire string is outside of the clipping rectangle.
     --If they are, however, both iBegin and iEnd will be the same index.
     local iBegin = xBegin - x + 1
-    local iEnd   = util.clamp( x + #str, self.rect.l, self.rect.r ) - x
+    local iEnd   = util.clamp( x + #str, self.clip.l, self.clip.r ) - x
     
     --Find where in the buffer we're going to draw to
-    local bp = xBegin + y * self.buffer.size.width
+    local b  = self.buffer
+    local bp = xBegin + y * b.size.width
     
     --Draw characters one by one
     for i = iBegin, iEnd do
-        b[bp] = getEncoding( string.byte( str, i ), self.fg, self.bg )
+        b:rawset( bp, encode( string.byte( str, i ), self.fg, self.bg ) )
         bp = bp + 1
     end
 end
@@ -233,10 +261,10 @@ function c:pushState()
     table.insert(
         self.stateStack,
         {
-            ["bg"]        = self.bg,
             ["fg"]        = self.fg,
+            ["bg"]        = self.bg,
             ["c"]         = self.c,
-            ["rect"]      = self.rect:copy(),
+            ["clip"]      = self.clip:copy(),
             ["translate"] = self.translate:copy()
         }
     )
@@ -272,18 +300,18 @@ end
 
 --Sets the character that gets drawn
 function c:setCharacter( c )
-    self.c = c
+    self.c = string.byte( c )
 end
 
 --Returns the character that gets drawn
 function c:getCharacter()
-    return self.c
+    return string.char( self.c )
 end
 
 --Sets the clipping rectangle
-function c:setRect( r )
+function c:setClip( r )
     local s = self.buffer.size
-    self.rect = new.rect(
+    self.clip = new.rect(
         math.max( r.l, 0 ),
         math.max( r.t, 0 ),
         math.min( r.r, s.width ),
@@ -292,8 +320,8 @@ function c:setRect( r )
 end
 
 --Returns the current clipping rectangle
-function c:getRect()
-    return self.rect
+function c:getClip()
+    return self.clip
 end
 
 --Sets the translation

@@ -156,7 +156,7 @@ function c:drawAll( context )
     
     --We're going to restrict drawing operations to the subrectangle the panel occupies,
     --and change the translation so that draw operations are relative to the upper-left corner of the panel.
-    local r = context:getRect()
+    local r = context:getClip()
     local b = self.bounds
     r = new.rect(
         math.min( r.l + b.l, r.r ),
@@ -164,7 +164,7 @@ function c:drawAll( context )
         math.min( r.l + b.r, r.r ),
         math.min( r.t + b.b, r.b )
     )
-    context:setRect( r )
+    context:setClip( r )
     context:setTranslate( new.point( r.l, r.t ) )
     
     --Do panel-specific rendering

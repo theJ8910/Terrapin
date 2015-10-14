@@ -8,7 +8,7 @@ local env = getfenv()
 
 --Load some privileged modules manually
 --TEMP: loading "class" module like this
-paths = {}
+local paths = {}
 class = {}
 do
     local mmt = { __index = env }
@@ -131,7 +131,7 @@ mnmt.__tostring = mnfn.toString
 --Given a path and the current working directory, returns a path for the module.
 --path and cwd are both expected to be path objects, and cwd must be absolute.
 --Returns or nil if the module couldn't be found.
-local function find_module( path, cwd )
+local function findModule( path, cwd )
     --If the path exists, returns it. Otherwise, returns nil.
     local f = function( path )
         if path:exists() then return path end
@@ -162,7 +162,7 @@ local function find_module( path, cwd )
 end
 
 --Records dependent as requiring dependency.
-local function add_dependency( dependent, dependency )
+local function addDependency( dependent, dependency )
     if dependent.dependencies[ dependency ] ~= nil then return end
 
     dependent.dependencies[ dependency ] = true
@@ -172,7 +172,7 @@ local function add_dependency( dependent, dependency )
 end
 
 --Records dependent as no longer requiring dependency.
-local function remove_dependency( dependent, dependency )
+local function removeDependency( dependent, dependency )
     if dependent.dependencies[ dependency ] == nil then return end
 
     dependent.dependencies[ dependency ] = nil
@@ -182,7 +182,7 @@ local function remove_dependency( dependent, dependency )
 end
 
 --Unloads the given module.
-local function unload_module( module )
+local function unloadModule( module )
     --Module's already in the process of being unloaded; nothing to do
     if module.state == STATE_UNLOADING then return end
     local wasInitialized = ( module.state == STATE_INITIALIZED )
@@ -192,7 +192,7 @@ local function unload_module( module )
     local k = next( module.dependents )
     while k ~= nil do
         --Calling this removes k from module.dependents
-        unload_module( k )
+        unloadModule( k )
         k = next( module.dependents )
     end
 
@@ -216,10 +216,10 @@ local function unload_module( module )
     local k = next( module.dependencies )
     while k ~= nil do
         --Calling this removes k from module.dependencies
-        remove_dependency( module, k )
+        removeDependency( module, k )
 
         --Automatically unload k if module was its last dependent.
-        if k.dependentCount == 0 and k ~= main_module then unload_module( k ) end
+        if k.dependentCount == 0 and k ~= main_module then unloadModule( k ) end
 
         k = next( module.dependencies )
     end
@@ -227,9 +227,9 @@ end
 
 --Returns the module with the given path if it is already loaded,
 --or attempts to search for the module and load it.
-local function get_module( name, cwd )
+local function getModule( name, cwd )
     --Locate the module with this path
-    local path = find_module( name:toPath(), cwd )
+    local path = findModule( name:toPath(), cwd )
     if path == nil then return error( string.format( "Couldn't find module \"%s\".", tostring( name ) ), 3 ) end
 
     --Find the module, or attempt load it if it's not loaded yet
@@ -282,7 +282,7 @@ local function get_module( name, cwd )
 
             --Unload the modules if they failed to load.
             if not success then
-                unload_module( m )
+                unloadModule( m )
                 return false, err
             end
 
@@ -300,7 +300,7 @@ end
 --Initializes the given module's dependencies recursively, then initializes the given module.
 --While a module is being initialized, its state is set to STATE_INITIALIZING.
 --After a module has been successfully initialized, its state is set to STATE_INITIALIZED.
-local function initialize_module( module )
+local function initializeModule( module )
     --A module should only be initialized if it's in STATE_LOADED.
     --This prevents infinite recursion in the case of a circular dependency.
     if module.state ~= STATE_LOADED then return end
@@ -308,7 +308,7 @@ local function initialize_module( module )
 
     --Initialize modules we depend on first
     for k,v in pairs( module.dependencies ) do
-        initialize_module( k )
+        initializeModule( k )
     end
 
     --Call the module's __init function (if it has one).
@@ -387,14 +387,14 @@ function run( name )
 
     --Grab the module we're looking for
     name = parseModuleName( name )
-    main_module = get_module( name, paths.get( "/"..shell.dir() ) )
+    main_module = getModule( name, paths.get( "/"..shell.dir() ) )
 
     --This bit of code is isolated in its own function to make error handling easier (it's a try block, basically).
     --This function returns "false" as its first value if an error occurs, or "true" if it doesn't.
     --main() can return many values, so we pack them into a results table.
     local results = { ( function()
         --Main module and all its dependencies have loaded; now we initialize the main module and its dependencies
-        local success, err = pcall( initialize_module, main_module )
+        local success, err = pcall( initializeModule, main_module )
         if not success then return false, err end
 
         --Make sure the module has a .__main() function
@@ -408,7 +408,7 @@ function run( name )
     end )() }
 
     --Regardless of whether an error occurred or not, we unload the main module after the program finishes
-    unload_module( main_module )
+    unloadModule( main_module )
 
     --The first result is always whether or not the call executed without error.
     --The second result will be an error message if it didn't.
@@ -444,13 +444,13 @@ function require( name, ... )
 
     --Grab the module we're looking for
     name = parseModuleName( name )
-    local dependency = get_module( name, dependent.path:getParent() )
+    local dependency = getModule( name, dependent.path:getParent() )
 
     --Is this already a dependency? If so, we've got nothing more to do here.
     if dependent.dependencies[ dependency ] ~= nil then return end
 
     --Add the loaded module as a dependency of the module that requires it
-    add_dependency( dependent, dependency )
+    addDependency( dependent, dependency )
 
     --Now we create entries in the dependent module's import table.
     --Doing this allows the requiring module to use it.

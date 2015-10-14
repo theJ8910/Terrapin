@@ -49,6 +49,7 @@ function c:init( m )
     self.base.init( self )
     self.map = m
     self.camera = new.vector( 0, 0, 0 )
+    self.blink = true
     
     --When a visible tile on the map changes, tell us so we know the map needs to be redrawn
     m:addMapListener(
@@ -110,13 +111,33 @@ function c:draw( context )
         p.z = p.z + 1
     end
 
+    --Camera position
+    context:setForeground( colors.white )
+    context:setBackground( colors.red )
+    context:drawText( 0, 0, string.format( "%d,%d,%d", self.camera.x, self.camera.y, self.camera.z ) )
+
     --Controls
-    local hw = math.floor( w / 2 )
-    local hh = math.floor( h / 2 )
-    context:draw( 0,   hh,  "<", colors.red, colors.black )
-    context:draw( w-1, hh,  ">", colors.red, colors.black )
-    context:draw( hw,  0,   "^", colors.red, colors.black )
-    context:draw( hw,  h-1, "v", colors.red, colors.black )
+    if self.blink then
+        local hw = math.floor( w / 2 )
+        local hh = math.floor( h / 2 )
+        context:setForeground( colors.red   )
+        context:setBackground( colors.black )
+
+        context:setCharacter( "<" )
+        context:draw( 0,   hh )
+
+        context:setCharacter( ">" )
+        context:draw( w-1, hh )
+
+        context:setCharacter( "^" )
+        context:draw( hw,  0 )
+
+        context:setCharacter( "v" )
+        context:draw( hw,  h-1 )
+
+        context:setCharacter( "x" )
+        context:draw( hw,  hh )
+    end
 end
 
 class.register( "mapPanel", c, "panel" )

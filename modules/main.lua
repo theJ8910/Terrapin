@@ -5,8 +5,6 @@ require( "graphics" )
 require( "vector" )
 require( "rect" )
 
-running = true
-
 local w, h = term.getSize()
 g = new.graphics( w, h )
 
@@ -28,28 +26,46 @@ function scan( pname, ploc )
     end
 end
 
-local kp = {}
-function keyPress()
-    while running do
-        local event, scancode = os.pullEvent( "key" )
-        table.insert( kp, scancode )
+local timers = {}
+
+--Runs fn after delay seconds have passed (actual time may be longer than what was specified).
+local function setTimeout( delay, fn )
+    timers[ os.startTimer( delay ) ] = fn
+end
+
+--Event processing loop
+function eventProc()
+    while true do
+        local event, arg1 = os.pullEvent()
+        if event == "key" then
+            --Tilda exits the program (I'd make it escape, but that's the key ComputerCraft uses to leave its GUI)
+            if arg1 == 41 then return end
+
+            rootPanel:dispatch( "key", arg1 )
+        elseif event == "timer" then
+            local fn = timers[arg1]
+            timers[arg1] = nil
+            if fn ~= nil then fn() end
+        end
     end
 end
 
 local changed = false
-function scheduler()
-    while running do
-        --Dispatch keys
-        for k,v in ipairs( kp ) do
-            rootPanel:dispatch( "key", v )
-        end
-        kp = {}
-        
+function display()
+    local c = g:getContext()
+    c:setForeground( colors.black )
+    c:setBackground( colors.red )
+    c:setCharacter( "*" )
+
+    while true do        
         if changed then
             rootPanel:drawAll( g:getContext() )
             g:draw()
             changed = false
         end
+
+        --c:draw( math.random( 0, w-1 ), math.random( 0, h-1 ) )
+        --g:draw()
         
         --Update framerate as necessary
         os.sleep( 0.01 )
@@ -63,8 +79,21 @@ function __main()
     --Draw initial graphics
     rootPanel:drawAll( g:getContext() )
     g:redraw()
+
+    --TEMP: Make the controls on the map panel blink
+    local f
+    f = function()
+        rootPanel.blink = not rootPanel.blink
+        panel.needsUpdate()
+        setTimeout( 0.5, f )
+    end
+    setTimeout( 0.5, f )
     
-    parallel.waitForAll( scheduler, keyPress )
+    parallel.waitForAny( display, eventProc )
+end
+
+function __cleanup()
+    g:reset()
 end
 
 --[[

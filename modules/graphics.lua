@@ -2,65 +2,59 @@ require( "buffer" )
 
 local c = {}
 
---Init the graphics. Create front and back buffers w x h cells large.
+--Init the graphics. Create a buffer w x h cells large.
 function c:init( w, h )
-    self.fb = new.buffer( w, h )
-    self.bb = new.buffer( w, h )
+    self.b = new.buffer( w, h )
 end
 
---Resize the buffers
+--Resize the buffer
 function c:resize( size )
-    self.fb:setSize( size )
-    self.bb:setSize( size )
-end
-
---Swap buffers
-function c:swapBuffers()
-    --Swap the front and back buffers
-    local swap = self.bb
-    self.bb = self.fb
-    self.fb = swap
+    self.b:setSize( size )
 end
 
 --Fully redraws the screen
 function c:redraw()
-    local size = self.fb:getSize()
-    print( size.width )
-    print( size.height )
-    --[[
-    self:swapBuffers()
-    
+    local b = self.b
     local ch, fg, bg
-    local size = self.fb:getSize()
+    local size = b:getSize()
     for y = 1, size.height do
         for x = 1, size.width do
             term.setCursorPos( x, y )
-            ch, fg, bg = self.fb:get( x-1, y-1 )
+            ch, fg, bg = b:get( x-1, y-1 )
             term.setTextColor( fg )
             term.setBackgroundColor( bg )
             term.write( ch )
         end
     end
-    ]]--
 end
 
 --Draws changes to the screen
 function c:draw()
-    self:swapBuffers()
-    
-    --Compare the two, drawing changed tiles
-    buffer.compare( self.fb, self.bb, function( x, y )
-        local ch, fg, bg = self.fb:get( x, y )
+    local b = self.b
+    local ch, fg, bg
+    b:forEachUpdate( function( x, y )
+        ch, fg, bg = b:get( x, y )
         term.setCursorPos( x + 1, y + 1 )
         term.setTextColor( fg )
         term.setBackgroundColor( bg )
         term.write( ch )
     end )
+    b:clearUpdates()
 end
 
---Returns a context for the back buffer that you can draw with
+--Resets the graphics. This is best called during cleanup.
+--This function positions the cursor at the top-left, sets foreground and background colors
+--to their defaults (white and black respectively), then clears the screen.
+function c:reset()
+    term.setCursorPos( 1, 1 )
+    term.setTextColor( colors.white )
+    term.setBackgroundColor( colors.black )
+    term.clear()
+end
+
+--Returns a context for the buffer that you can draw with
 function c:getContext()
-    return self.bb:getContext()
+    return self.b:getContext()
 end
 
 class.register( "graphics", c )

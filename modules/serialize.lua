@@ -125,7 +125,7 @@ local typeToReadFnMap = {
 local factories = {}
 local function newSerializedObject( serialID )
     local factory = factories[ serialID ]
-    if factory == nil then error( string.format( "No factory for serial object with ID \"%s\".", serialID ) ) end
+    if factory == nil then error( string.format( "No factory for serial object with ID \"%d\".", serialID ) ) end
     return factory( serialID )
 end
 
@@ -159,8 +159,9 @@ end
 
 --Read a variable type of data (could be nil, a number, a bool, table, object, etc)
 function c:read()
-    local readFn = typeToReadFnMap[ self:readUnsignedInt8() ]
-    if readFn == nil then error( "Cannot read the given value. Invalid type: \""..id.."\"" ) end
+    local id = self:readUnsignedInt8()
+    local readFn = typeToReadFnMap[ id ]
+    if readFn == nil then error( string.format( "Cannot read the given value. Invalid type: \"%d\"", id ) ) end
     return readFn( self )
 end
 
@@ -394,7 +395,7 @@ end
 --Write a variable type of data (could be nil, a number, a bool, table, object, etc)
 function c:write( value )
     local writeFn = typeToWriteFnMap[ type( value ) ]
-    if writeFn == nil then error( "Cannot write the given value. Invalid type: \""..type( value ).."\"" ) end
+    if writeFn == nil then error( string.format( "Cannot write the given value. Invalid type: \"%s\"", type( value ) ) ) end
     writeFn( self, value )
 end
 
@@ -409,7 +410,7 @@ end
 function c:writeSignedInt8( value )
     value = util.truncate( value )
     if value < -128 or value > 127 then
-        error( value.." is outside of signed int8 range [-128, 127]" )
+        error( string.format( "%d is outside of signed int8 range [-128, 127]", value ) )
     end
     self.file:write( value )
 end
@@ -417,7 +418,7 @@ end
 function c:writeUnsignedInt8( value )
     value = util.truncate( value )
     if value < 0 or value > 255 then
-        error( value.." is outside of unsigned int8 range [0, 255]" )
+        error( string.format( "%d is outside of unsigned int8 range [0, 255]", value ) )
     end
     self.file:write( byte( value ) )
 end
@@ -425,7 +426,7 @@ end
 function c:writeSignedInt16( value )
     value = util.truncate( value )
     if value < -32768 or value > 32767 then
-        error( value.." is outside of signed int16 range [-32768, 32767]" )
+        error( string.format( "%d is outside of signed int16 range [-32768, 32767]", value ) )
     end
     if value < 0 then
         value = 65536 + value
@@ -437,7 +438,7 @@ end
 function c:writeUnsignedInt16( value )
     value = util.truncate( value )
     if value < 0 or value > 65535 then
-        error( value.." is outside of unsigned int16 range [0, 65535]" )
+        error( string.format( "%d is outside of unsigned int16 range [0, 65535]", value ) )
     end
     self.file:write( byte( math.floor( value / 256  ) ) )
     self.file:write( byte( value % 256 ) )
@@ -446,7 +447,7 @@ end
 function c:writeSignedInt32( value )
     value = util.truncate( value )
     if value < -2147483648 or value > 2147483647 then
-        error( value.." is outside of signed int32 range [-2147483648, 2147483647]" )
+        error( string.format( "%d is outside of signed int32 range [-2147483648, 2147483647]", value ) )
     end
     if value < 0 then
         value = 4294967296 + value
@@ -464,7 +465,7 @@ end
 function c:writeUnsignedInt32( value )
     value = util.truncate( value )
     if value < 0 or value > 4294967295 then
-        error( value.." is outside of unsigned int32 range [0, 4294967295]" )
+        error( string.format( "%d is outside of unsigned int32 range [0, 4294967295]" ) )
     end
     
     --Left-shift 3 bytes
