@@ -8,7 +8,7 @@ local env = getfenv()
 
 --Load some privileged modules manually
 --TEMP: loading "class" module like this
-local paths = {}
+paths = {}
 class = {}
 do
     local mmt = { __index = env }
@@ -74,66 +74,55 @@ end
 local mnfn = {}
 local mnmt = {}
 
---Validates a name and returns a table of its parts
---Name parts must follow these rules:
+--Given a module name as a string, validates the name and returns a parsed module name.
+--A module name is valid if each of its parts (separated by ".") follow these rules:
 --    1. Parts cannot not be empty
 --    2. Parts cannot start with digits
 --    3. Parts can contain only alphanumeric characters and underscores
 --"a.b.c" -> { "a", "b", "c" }
-local function parseModuleName( name )
-    if name == "" then error( "A module name cannot be empty!" ) end
-    local parts = {}
+local function parseModuleName( str )
+    if str == "" then error( "A module name cannot be empty!" ) end
+    local name = {}
+    setmetatable( name, mnmt )
     
-    local len = #name
+    local len = #str
     local i = 1
     while i <= len do
-        local d = string.find( name, "%.", i ) or ( len + 1 )
-        local part = string.sub( name, i, d - 1 )
-        if     part == ""                    then return error( string.format( "\"%s\" is an invalid module name. It contains empty parts.", name ) )
-        elseif string.find( part, "^%d" )    then return error( string.format( "\"%s\" is an invalid module name. \"%s\" starts with digits.", name, part ) )
-        elseif string.find( part, "[^%w_]" ) then return error( string.format( "\"%s\" is an invalid module name. \"%s\" contains one or more non-alphanumeric, non-underscore characters.", name, part ) )
+        local d = string.find( str, "%.", i ) or ( len + 1 )
+        local part = string.sub( str, i, d - 1 )
+        if     part == ""                    then return error( string.format( "\"%s\" is an invalid module name. It contains empty parts.", str ), 3 )
+        elseif string.find( part, "^%d" )    then return error( string.format( "\"%s\" is an invalid module name. \"%s\" starts with digits.", str, part ), 3 )
+        elseif string.find( part, "[^%w_]" ) then return error( string.format( "\"%s\" is an invalid module name. \"%s\" contains one or more non-alphanumeric, non-underscore characters.", str, part ), 3 )
         end
-        table.insert( parts, part )
+        table.insert( name, part )
         i = d + 1
     end
 
-    local t = {
-        parts = parts
-    }
-    setmetatable( t, mnmt )
-    
-    return t
+    return name
 end
 
 --{ "a", "b", "c" } -> paths.get( "a/b/c.lua" )
 function mnfn:toPath()
-    local parts = self.parts
-
     local path = paths.get( "" )
-    local c = #parts
+    local c = #self
     for i = 1, c - 1 do
-        path:append( parts[ i ] )
+        path:append( self[ i ] )
     end
-    path:append( parts[ c ]..".lua" )
+    path:append( self[ c ]..".lua" )
 
     return path
 end
 
 --{ "a", "b", "c" } -> "a.b.c"
 function mnfn:toString()
-    local parts = self.parts
-    local name = parts[1]
-    for i = 2, #parts do
-        name = name..parts[i]
+    local name = self[1]
+    for i = 2, #self do
+        name = name..self[i]
     end
     return name
 end
 
-function mnmt:__index( k )
-    if type( k ) == "number" then return self.parts[ k ] end
-    return mnfn[ k ]
-end
-
+mnmt.__index    = mnfn
 mnmt.__tostring = mnfn.toString
 
 
@@ -346,16 +335,16 @@ end
 
 --Imports a module using its fully qualified name.
 --Creates a chain of nested tables such that the following is achieved:
---    it.parts_1.parts_2. ... .parts_n = ut
+--    it.name_1.name_2. ... .name_n = ut
 --Non-existing tables are created, and existing tables are reused.
 --If a non-table key is encountered, an error is generated.
-local function importFQN( it, ut, parts )
-    local c = #parts
-    local lastPart = parts[ c ]
+local function importFQN( it, ut, name )
+    local c = #name
+    local lastPart = name[ c ]
 
     local t = it
     for i = 1, c - 1 do
-        local k = parts[i]
+        local k = name[i]
         local v = t[ k ]
         if v == nil then
             v = {}
@@ -370,10 +359,10 @@ local function importFQN( it, ut, parts )
 end
 
 --Handles importing one module into another
-local function import( it, ut, parts, importKeys )
+local function import( it, ut, name, importKeys )
     --Import the module under both its simple name and its fully qualified name
-    importFQN( it, ut, parts )
-    importSimple( it, parts[ #parts ], ut )
+    importFQN( it, ut, name )
+    importSimple( it, name[ #name ], ut )
 
     --Import any additional keys specified by the module
     for i,k in ipairs( importKeys ) do
@@ -465,7 +454,7 @@ function require( name, ... )
 
     --Now we create entries in the dependent module's import table.
     --Doing this allows the requiring module to use it.
-    import( dependent.it, dependency.t, name.parts, { ... } )
+    import( dependent.it, dependency.t, name, { ... } )
 end
 
 --If the name of a module is provided as an argument, run that module.
