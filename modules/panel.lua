@@ -121,9 +121,18 @@ function c:dispatch( event, ... )
     return self[event]( self, ... )
 end
 
---Default key handler does nothing
-function c:key( key )
-
+--Default event handlers do nothing
+function c:key( key, held )
+end
+function c:key_up( key, held )
+end
+function c:mouse_click( button, x, y )
+end
+function c:mouse_up( button, x, y )
+end
+function c:mouse_drag( button, x, y )
+end
+function c:mouse_scroll( dir, x, y )
 end
 
 --Directs the focus chain towards one of the children of this panel

@@ -61,6 +61,11 @@ function c:getHeight()
     return self.b - self.t
 end
 
+--Returns the width and height of the rect
+function c:getSize()
+    return self.r - self.l, self.b - self.t
+end
+
 function c:getSerialID()
     return ids.RECT
 end

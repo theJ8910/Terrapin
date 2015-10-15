@@ -1,5 +1,6 @@
 require( "vector" )
 require( "panel" )
+require( "timer" )
 
 local builtinBlocks = {
     [0] = {
@@ -50,7 +51,16 @@ function c:init( m )
     self.map = m
     self.camera = new.vector( 0, 0, 0 )
     self.blink = true
+
+    self.cameraWasAt  = new.point( 0, 0 )
+    self.draggingFrom = new.point( 0, 0 )
     
+    --Make the controls on the map panel blink
+    self.timerid = timer.repeating( 0.5, function()
+        self.blink = not self.blink
+        panel.needsUpdate()
+    end )
+
     --When a visible tile on the map changes, tell us so we know the map needs to be redrawn
     m:addMapListener(
         function( pos, block )
@@ -67,6 +77,10 @@ function c:init( m )
             end
         end
     )
+end
+
+function c:destroy()
+    timer.cancel( self.timerid )
 end
 
 function c:setCamera( camera )
@@ -94,6 +108,37 @@ function c:key( scancode )
     return true
 end
 
+function c:mouse_click( button, x, y )
+    local w, h = self:getBounds():getSize()
+    local hw = math.floor( w/2 ) + 1
+    local hh = math.floor( h/2 ) + 1
+
+    if     x == hw and y == 1  then keyPressHandlers[200]( self )
+    elseif x == hw and y == h  then keyPressHandlers[208]( self )
+    elseif x == 1  and y == hh then keyPressHandlers[203]( self )
+    elseif x == w  and y == hh then keyPressHandlers[205]( self )
+    else
+        self.cameraWasAt.x  = self.camera.x
+        self.cameraWasAt.y  = self.camera.z
+        self.draggingFrom.x = x
+        self.draggingFrom.y = y
+    end
+    return true
+end
+
+function c:mouse_drag( button, x, y )
+    self.camera.x = self.cameraWasAt.x + self.draggingFrom.x - x
+    self.camera.z = self.cameraWasAt.y + self.draggingFrom.y - y
+    panel.needsUpdate()
+end
+
+function c:mouse_scroll( dir, x, y )
+    if     dir ==  1 then keyPressHandlers[51]( self )
+    elseif dir == -1 then keyPressHandlers[52]( self )
+    end
+    return true
+end
+
 function c:draw( context )
     local b = self:getBounds()
     local w = b:getWidth()
@@ -104,7 +149,10 @@ function c:draw( context )
     for y=0, h-1 do
         for x=0, w-1 do
             local ch, fg, bg = getRenderInfo( self.map:getBlock( p ) )
-            context:draw( x, y, ch, fg, bg )
+            context:setCharacter( ch )
+            context:setForeground( fg )
+            context:setBackground( bg )
+            context:draw( x, y )
             p.x = p.x + 1
         end
         p.x = xbegin
@@ -115,6 +163,7 @@ function c:draw( context )
     context:setForeground( colors.white )
     context:setBackground( colors.red )
     context:drawText( 0, 0, string.format( "%d,%d,%d", self.camera.x, self.camera.y, self.camera.z ) )
+    context:drawText( 0, 1, builtinBlocks[ self.map:getBlock( self.camera ) ].name )
 
     --Controls
     if self.blink then

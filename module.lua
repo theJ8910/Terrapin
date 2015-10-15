@@ -117,7 +117,7 @@ end
 function mnfn:toString()
     local name = self[1]
     for i = 2, #self do
-        name = name..self[i]
+        name = name.."."..self[i]
     end
     return name
 end
@@ -254,8 +254,9 @@ local function getModule( name, cwd )
         it._G = t
         setmetatable( t, mt )
         m = {
+            [ "name"           ] = name,             --Name of the module (e.g. "test.main")
             [ "key"            ] = key,              --The key the module is stored under in our modules collection.
-            [ "path"           ] = path,             --Path object to the .lua file for the module
+            [ "path"           ] = path,             --Path object to the .lua file for the module (e.g. "/modules/test/main.lua" )
             [ "t"              ] = ut,               --Module's unique table.
             [ "it"             ] = it,               --Module's import table.
             [ "dependencies"   ] = {},               --Modules that this module depends upon. This module will be unloaded if any of these modules are unloaded.
@@ -381,8 +382,9 @@ local function import( it, ut, name, importKeys )
 end
 
 --Loads and runs the module with the given name and sets it as our main module.
---Returns whatever the __main() function of the given module returns if it loads and runs without error.
-function run( name )
+--Calls the __main() function of the given module, passing any additional arguments provided to run.
+--If the module loads and runs without error, run() returns whatever the module's __main() function returns.
+function run( name, ... )
     if type( name ) ~= "string" then return error( "name is not a string.", 2 ) end
 
     --Grab the module we're looking for
@@ -392,7 +394,7 @@ function run( name )
     --This bit of code is isolated in its own function to make error handling easier (it's a try block, basically).
     --This function returns "false" as its first value if an error occurs, or "true" if it doesn't.
     --main() can return many values, so we pack them into a results table.
-    local results = { ( function()
+    local results = { ( function( ... )
         --Main module and all its dependencies have loaded; now we initialize the main module and its dependencies
         local success, err = pcall( initializeModule, main_module )
         if not success then return false, err end
@@ -404,8 +406,8 @@ function run( name )
         end
 
         --Call __main().
-        return pcall( main )
-    end )() }
+        return pcall( main, ... )
+    end )( ... ) }
 
     --Regardless of whether an error occurred or not, we unload the main module after the program finishes
     unloadModule( main_module )
@@ -457,8 +459,35 @@ function require( name, ... )
     import( dependent.it, dependency.t, name, { ... } )
 end
 
+--Returns a list of loaded modules' names.
+function getLoadedModules()
+    local t = {}
+    for k,v in pairs( modules ) do
+        table.insert( t, tostring( v.name ) )
+    end
+    return t
+end
+
 --If the name of a module is provided as an argument, run that module.
---e.g. "module.lua main.lua"
+--e.g. "module.lua main"
 if select( "#", ... ) > 0 then
-    run( ..., nil )
+    run( ... )
+--Otherwise, provide usage information.
+else
+    --Writes "str" using the given color
+    local function write2( str, color )
+        local old = term.getTextColor()
+        term.setTextColor( color )
+        write( str )
+        term.setTextColor( old )
+    end
+
+    local program = fs.getName( shell.getRunningProgram() )
+    write( "Usage:\n" )
+    write( "    "..program )
+    write2( " <module>\n", colors.green )
+
+    write( "Examples:\n" )
+    write( "    Runs \"modules/main.lua\":\n" )
+    write( "    "..program.." main\n" )
 end
