@@ -38,20 +38,20 @@ function c:eventMapListener( pos, block )
     end
 end
 
-function c:setBlock( pos, block )
-    local chunkx = math.floor( pos.x/16 )
-    local chunkz = math.floor( pos.z/16 )
+function c:setBlock( x, y, z, block )
+    local chunkx = math.floor( x / 16 )
+    local chunkz = math.floor( z / 16 )
     local chunk  = self:getChunk( chunkx, chunkz )
     
-    chunk:setBlock( new.vector( pos.x % 16, pos.y, pos.z % 16 ), block )
+    chunk:setBlock( x % 16, y, z % 16, block )
 end
 
-function c:getBlock( pos )
-    local chunkx = math.floor( pos.x/16 )
-    local chunkz = math.floor( pos.z/16 )
+function c:getBlock( x, y, z )
+    local chunkx = math.floor( x / 16 )
+    local chunkz = math.floor( z / 16 )
     local chunk  = self:getChunk( chunkx, chunkz )
     
-    return chunk:getBlock( new.vector( pos.x % 16, pos.y, pos.z % 16 ) )
+    return chunk:getBlock( x % 16, y, z % 16 )
 end
 
 function c:getChunk( x, z )

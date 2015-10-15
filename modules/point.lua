@@ -8,6 +8,15 @@ function c:init( x, y )
     self.y = y
 end
 
+function c:set( x, y )
+    self.x = x
+    self.y = y
+end
+
+function c:get()
+    return self.x, self.y
+end
+
 function c:copy()
     return new.point( self.x, self.y )
 end

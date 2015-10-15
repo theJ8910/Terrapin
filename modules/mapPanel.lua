@@ -140,30 +140,30 @@ function c:mouse_scroll( dir, x, y )
 end
 
 function c:draw( context )
-    local b = self:getBounds()
-    local w = b:getWidth()
-    local h = b:getHeight()
+    local cx, cy, cz = self.camera:get()
+    local w, h = self:getBounds():getSize()
     
     local xbegin, zbegin = getMapCoordinates( self.camera.x, self.camera.z, w, h )
-    local p = new.vector( xbegin, self.camera.y, zbegin )
+    local px, pz         = xbegin, zbegin
     for y=0, h-1 do
         for x=0, w-1 do
-            local ch, fg, bg = getRenderInfo( self.map:getBlock( p ) )
+            local ch, fg, bg = getRenderInfo( self.map:getBlock( px, cy, pz ) )
             context:setCharacter( ch )
             context:setForeground( fg )
             context:setBackground( bg )
             context:draw( x, y )
-            p.x = p.x + 1
+            px = px + 1
         end
-        p.x = xbegin
-        p.z = p.z + 1
+        px = xbegin
+        pz = pz + 1
     end
 
     --Camera position
+    
     context:setForeground( colors.white )
     context:setBackground( colors.red )
-    context:drawText( 0, 0, string.format( "%d,%d,%d", self.camera.x, self.camera.y, self.camera.z ) )
-    context:drawText( 0, 1, builtinBlocks[ self.map:getBlock( self.camera ) ].name )
+    context:drawText( 0, 0, string.format( "%d,%d,%d", cx, cy, cz ) )
+    context:drawText( 0, 1, builtinBlocks[ self.map:getBlock( cx, cy, cz ) ].name )
 
     --Controls
     if self.blink then

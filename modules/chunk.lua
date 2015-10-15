@@ -1,17 +1,17 @@
 require( "serialize" )
 require( "ids" )
 
---Returns a unique hash of the given vector
-local function hashPos( v )
-    return v.x + 16*v.y + 4096*v.z
+--Returns a unique hash of the given x, y, z coordinates
+local function hashPos( x, y, z )
+    return x + 16 * y + 4096 * z
 end
 
 local c = {}
 
 function c:init( x, z )
     self.loaded     = false
-    self.x = x
-    self.z = z
+    self.x          = x
+    self.z          = z
     self.blocks     = {}
     self.blockCount = 0
 end
@@ -20,8 +20,8 @@ function c:setLoaded( loaded )
     self.loaded = loaded
 end
 
-function c:getLoaded( loaded )
-    self.loaded = loaded
+function c:getLoaded()
+    return self.loaded
 end
 
 function c:setX( x )
@@ -40,8 +40,8 @@ function c:getZ()
     return self.z
 end
 
-function c:setBlock( pos, block )
-    local h = hashPos( pos )
+function c:setBlock( x, y, z, block )
+    local h = hashPos( x, y, z )
     local old = self.blocks[h]
     if old == nil and block ~= nil then
         self.blockCount = self.blockCount + 1
@@ -51,8 +51,8 @@ function c:setBlock( pos, block )
     self.blocks[ h ] = block
 end
 
-function c:getBlock( pos )
-    local b = self.blocks[ hashPos( pos ) ]
+function c:getBlock( x, y, z )
+    local b = self.blocks[ hashPos( x, y, z ) ]
     if b ~= nil then return b end
     
     --0 (shroud) is returned if there is no block set for the given position

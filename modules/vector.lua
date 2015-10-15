@@ -13,6 +13,16 @@ function c:copy()
     return new.vector( self.x, self.y, self.z )
 end
 
+function c:set( x, y, z )
+    self.x = x
+    self.y = y
+    self.z = z
+end
+
+function c:get()
+    return self.x, self.y, self.z
+end
+
 --Check if two vectors are equal
 function c:__eq( other )
     return self.x == other.x and
