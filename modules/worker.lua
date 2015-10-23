@@ -2,6 +2,7 @@ require( "vector" )
 require( "orient" )
 require( "serialize" )
 require( "ids" )
+require( "comms" )
 
 local workers = {}
 
@@ -15,17 +16,37 @@ CONSTRUCTION = 5      --Builders can build things
 
 local c = {}
 
+--Adds a worker with the given ID
+function add( id )
+    local worker = new.worker( id )
+
+    workers[ id ] = worker
+
+    return worker
+end
+
+--Returns a worker with the given ID
+function get( id )
+    return workers[ id ]
+end
+
+--Returns a table
+--TODO: this should return a copy and/or immutable view
 function getAll()
     return workers
 end
 
-function c:init()
+function c:init( id )
     --Keep track of computer / turtle's current position / facing direction
+    self.id   = id
     self.pos  = new.vector( 0, 0, 0 )
     self.dir  = orient.EAST
     self.jobs = {}
+end
 
-    table.insert( workers, t )
+--Send a message to this turtle
+function c:transmit( msgID, ... )
+    comms.transmit( self.id, msgID, ... )
 end
 
 function c:setPos( pos )
@@ -61,13 +82,17 @@ function c:getSerialID()
 end
 
 function c:save( writer )
+    writer:writeUnsignedInt32( self.id )
     writer:writeObject( self.pos )
     writer:writeUnsignedInt8( self.dir )
 end
 
 function c:load( reader )
+    self.id  = reader:readUnsignedInt32()
     self.pos = reader:readObject( ids.VECTOR )
     self.dir = reader:readUnsignedInt8()
 end
 
-serialize.register( new, ids.WORKER )
+class.register( "worker", c )
+
+serialize.register( function( serialID ) return new.worker( 0 ) end, ids.WORKER )

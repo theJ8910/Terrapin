@@ -100,7 +100,7 @@ local keyPressHandlers = {
     [52]  = function( self ) self.camera.y = math.max( self.camera.y - 1, 0   ); panel.needsUpdate() end,    --Right angle bracket
 }
 
-function c:key( scancode )
+function c:onKeyDown( scancode )
     local handler = keyPressHandlers[ scancode ]
     if handler == nil then return false end
     
@@ -108,15 +108,15 @@ function c:key( scancode )
     return true
 end
 
-function c:mouse_click( button, x, y )
+function c:onMouseDown( x, y, button )
     local w, h = self:getBounds():getSize()
-    local hw = math.floor( w/2 ) + 1
-    local hh = math.floor( h/2 ) + 1
+    local hw = math.floor( w/2 )
+    local hh = math.floor( h/2 )
 
-    if     x == hw and y == 1  then keyPressHandlers[200]( self )
-    elseif x == hw and y == h  then keyPressHandlers[208]( self )
-    elseif x == 1  and y == hh then keyPressHandlers[203]( self )
-    elseif x == w  and y == hh then keyPressHandlers[205]( self )
+    if     x == hw     and y == 0     then keyPressHandlers[200]( self )
+    elseif x == hw     and y == h - 1 then keyPressHandlers[208]( self )
+    elseif x == 0      and y == hh    then keyPressHandlers[203]( self )
+    elseif x == w - 1  and y == hh    then keyPressHandlers[205]( self )
     else
         self.cameraWasAt.x  = self.camera.x
         self.cameraWasAt.y  = self.camera.z
@@ -126,13 +126,14 @@ function c:mouse_click( button, x, y )
     return true
 end
 
-function c:mouse_drag( button, x, y )
+function c:onMouseDrag( x, y, button )
     self.camera.x = self.cameraWasAt.x + self.draggingFrom.x - x
     self.camera.z = self.cameraWasAt.y + self.draggingFrom.y - y
     panel.needsUpdate()
+    return true
 end
 
-function c:mouse_scroll( dir, x, y )
+function c:onMouseScroll( x, y, dir )
     if     dir ==  1 then keyPressHandlers[51]( self )
     elseif dir == -1 then keyPressHandlers[52]( self )
     end
@@ -158,8 +159,7 @@ function c:draw( context )
         pz = pz + 1
     end
 
-    --Camera position
-    
+    --Camera position & block info
     context:setForeground( colors.white )
     context:setBackground( colors.red )
     context:drawText( 0, 0, string.format( "%d,%d,%d", cx, cy, cz ) )

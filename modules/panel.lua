@@ -1,5 +1,7 @@
 require( "rect" )
 
+local mouseCapturePanel = nil
+
 --panel
 local c = {}
 
@@ -41,9 +43,9 @@ function c:setParent( p )
     
         --Remove this panel from its previous parent
         if oldp ~= nil then
-            for k,v in ipairs( oldp.children ) do
+            for i,v in ipairs( oldp.children ) do
                 if v == c then
-                    table.remove( oldp.children, k )
+                    table.remove( oldp.children, i )
                     break
                 end
             end
@@ -55,7 +57,7 @@ function c:setParent( p )
             table.insert( p.children, self )
         end
         
-        panel.needsUpdate()
+        needsUpdate()
     end
 end
 
@@ -77,7 +79,7 @@ function c:setVisible( visible )
     self.visible = visible
     
     if old ~= visible then
-        panel.needsUpdate()
+        needsUpdate()
     end
 end
 
@@ -114,25 +116,75 @@ end
 --When you call A:dispatch( "key" ), it calls B:key(),
 --and if B:key() returns a value other than true,
 --this will be followed by A:key().
-function c:dispatch( event, ... )
+function c:keyDispatch( event, ... )
     if self.focusChild ~= nil and self.focusChild:dispatch( event, ... ) == true then
         return true
     end
     return self[event]( self, ... )
 end
 
+--Convert screen coordinates to coordinates relative to the upper-left corner of this panel
+function c:screenToLocal( x, y )
+    local p = self
+    local b
+    repeat
+        b = p.bounds
+        x = x - b.l
+        y = y - b.t
+        p = p.parent
+    until p == nil
+
+    return x, y
+end
+
+--Your event loop should call this instead of :mouseDispatch()
+function c:rootMouseDispatch( event, x, y, ... )
+    if mouseCapturePanel ~= nil then
+        local x2, y2 = mouseCapturePanel:screenToLocal( x, y )
+        return mouseCapturePanel[ event ]( mouseCapturePanel, x2, y2, ... )
+    end
+
+    return self:mouseDispatch( event, x, y, ... )
+end
+
+--Dispatches an event across all the panels beneath the given point (x, y), in uppermost to lowermost order.
+--x, y is expected to be relative to the upper-left corner of this panel's parent (or 0,0 if it has no parent).
+function c:mouseDispatch( event, x, y, ... )
+    --If this panel is invisible or the click landed outside of its bounds.
+    if not self.visible or not self.bounds:contains( x, y ) then return false end
+
+    --Adjust coords to be relative to top-left corner of this panel.
+    x = x - self.bounds.l
+    y = y - self.bounds.t
+
+    local children = self.children
+    for i = #children, 1, -1 do
+        if children[i]:mouseDispatch( event, x, y, ... ) == true then return true end
+    end
+    return self[ event ]( self, x, y, ... )
+end
+
+--If mouseCapture is true, this panel will capture all mouse events, regardless of whether the mouse is hovering over it or not.
+--If mouseCapture is false.
+function c:setMouseCapture( mouseCapture )
+    if mouseCapture then
+        if mouseCapturePanel == nil then mouseCapturePanel = self end
+    elseif mouseCapturePanel == self then mouseCapturePanel = nil
+    end
+end
+
 --Default event handlers do nothing
-function c:key( key, held )
+function c:onKeyDown( key, held )
 end
-function c:key_up( key, held )
+function c:onKeyUp( key, held )
 end
-function c:mouse_click( button, x, y )
+function c:onMouseDown( x, y, button )
 end
-function c:mouse_up( button, x, y )
+function c:onMouseUp( x, y, button )
 end
-function c:mouse_drag( button, x, y )
+function c:onMouseDrag( x, y, button )
 end
-function c:mouse_scroll( dir, x, y )
+function c:onMouseScroll( x, y, dir )
 end
 
 --Directs the focus chain towards one of the children of this panel
@@ -165,22 +217,22 @@ function c:drawAll( context )
     
     --We're going to restrict drawing operations to the subrectangle the panel occupies,
     --and change the translation so that draw operations are relative to the upper-left corner of the panel.
-    local r = context:getClip()
+    local c = context:getClip()
     local b = self.bounds
-    r = new.rect(
-        math.min( r.l + b.l, r.r ),
-        math.min( r.t + b.t, r.b ),
-        math.min( r.l + b.r, r.r ),
-        math.min( r.t + b.b, r.b )
+    c = new.rect(
+        math.min( c.l + b.l, c.r ),
+        math.min( c.t + b.t, c.b ),
+        math.min( c.l + b.r, c.r ),
+        math.min( c.t + b.b, c.b )
     )
-    context:setClip( r )
-    context:setTranslate( new.point( r.l, r.t ) )
+    context:setClip( c )
+    context:setTranslate( new.point( c.l, c.t ) )
     
     --Do panel-specific rendering
     self:draw( context )
     
     --Draw children in a similar fashion
-    for k,v in ipairs( self.children ) do
+    for i,v in ipairs( self.children ) do
         v:drawAll( context )
     end
     

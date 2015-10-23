@@ -84,7 +84,7 @@ local function parseModuleName( str )
     if str == "" then error( "A module name cannot be empty!" ) end
     local name = {}
     setmetatable( name, mnmt )
-    
+
     local len = #str
     local i = 1
     while i <= len do
@@ -187,7 +187,7 @@ local function unloadModule( module )
     if module.state == STATE_UNLOADING then return end
     local wasInitialized = ( module.state == STATE_INITIALIZED )
     module.state = STATE_UNLOADING
-    
+
     --Unload modules that depend on this module first
     local k = next( module.dependents )
     while k ~= nil do
@@ -276,7 +276,7 @@ local function getModule( name, cwd )
 
             --Register with the module loader
             modules[ key ] = m
-            
+
             --Execute the file.
             m.state = STATE_LOADING
             local success, err = pcall( f )
@@ -291,7 +291,7 @@ local function getModule( name, cwd )
             m.state = STATE_LOADED
             return true
         end )()
-        
+
         table.remove( loading_modules )
         if not success then error( err, 3 ) end
     end
@@ -467,6 +467,12 @@ function getLoadedModules()
     end
     return t
 end
+
+--TEMP
+function get( name )
+    return getModule( parseModuleName( name ), paths.get( "/"..shell.dir() ) )
+end
+_G.get = get
 
 --If the name of a module is provided as an argument, run that module.
 --e.g. "module.lua main"

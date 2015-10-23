@@ -219,7 +219,7 @@ function c:drawRectangle( left, top, right, bottom )
     
     local i
     for y=top, bottom-1 do
-        i = y * w
+        i = y * w + left
         for x=left, right-1 do
             b:rawset( i, enc )
             i = i + 1

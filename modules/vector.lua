@@ -91,6 +91,19 @@ class.register( "vector", c )
 
 serialize.register( function( serialID ) return new.vector( 0, 0, 0 ) end, ids.VECTOR )
 
+--Square of the distance between two points
+function sqDistance( v1, v2 )
+    local xOff = v2.x - v1.x
+    local yOff = v2.y - v1.y
+    local zOff = v2.z - v1.z
+    return xOff*xOff + yOff*yOff + zOff*zOff
+end
+
+--Distance between two points
+function distance( v1, v2 )
+    return math.sqrt( sqDistance( v1, v2 ) )
+end
+
 --Manhattan distance between two points
 function manhattan( v1, v2 )
     return math.abs( v2.x - v1.x ) +
