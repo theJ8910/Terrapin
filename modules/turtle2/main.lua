@@ -1,41 +1,10 @@
---This script can only be run on a turtle
-if turtle == nil then
-    print( "I am not a turtle!" )
-    return
-end
+if turtle == nil then return error( "This module can only be used by a turtle." ) end
+require( "enums" )
+require( "turtle2.item" )
+require( "device" )
+require( "async" )
 
-
-local remote     = {}
-local item       = nil
-local device     = nil
-do
-    local mt = { __index = getfenv() }
-    local function include( filename )
-        local fn, err = loadfile( filename )
-        if fn == nil then error( err ) end
-
-        local t = {}
-        setmetatable( t, mt )
-        setfenv( fn, t )
-        fn()
-
-        return t
-    end
-    --Load enums.lua.
-    --Both the mainframe and turtles have a copy of this file.
-    remote.enums = include( "enums.lua" )
-    item         = include( "turtle2/item.lua" )
-    device       = include( "device.lua" )
-end
-local enums  = remote.enums
-
---Event used to indicate an action is available
-local eventActionAvailable = "theJ89_action_available"
-
-
-
-
-local myID        = os.getComputerID()
+local myID
 local mainframeID = nil
 
 local modem
@@ -46,8 +15,7 @@ local sensorSide
 
 
 
---Store actions here until they can be processed
-local pendingActions = {}
+
 
 --In-memory storage for programs sent to us
 --Maps key => function
@@ -71,10 +39,28 @@ end
 
 
 
+--Calls fn, passing any additional arguments given to this function to fn.
+--If fn completes successfully, transmits an OK message to chOut containing whatever the function returns.
+--If fn encounters an error, transmits an ERR message to chOut containing the error message.
+--Note: fn may return as many values as necessary, but the return values must be nil, string, number, boolean, or table.
+--Functions, threads, and userdata should not be returned. Returned tables should not contain these datatypes either.
+local function runAndReply( chOut, packetID, fn, ... )
+    local results = { pcall( fn, ... ) }
+    if results[1] then transmit( chOut, { ["c"] = enums.OK,  ["i"] = packetID, select( 2, unpack( results ) ) } )
+    else               transmit( chOut, { ["c"] = enums.ERR, ["i"] = packetID, [1] = results[2] } )
+    end
+end
 
+--Returns a message handler that calls runAndReply asynchronously,
+--passing chOut as the first argument, fn as the second, and any additional arguments provided to the returned handler as additional arguments to runAndReply.
+--See runAndReply for more information.
+local function makeAsyncReplyHandler( fn )
+    return function( side, chIn, chOut, message, distance )
+        async.runLater( runAndReply, chOut, message.i, fn, unpack( message ) )
+    end
+end
 
-
-item.addListener( "added", function( slot, item )
+local function onItemAdded( slot, item )
     --A wireless modem isn't equipped, but we've found one
     if modem == nil and item.name == "ComputerCraft:CC-Peripheral" and item.damage == 1 then
         turtle.select( slot )
@@ -82,9 +68,9 @@ item.addListener( "added", function( slot, item )
         local side = device.equip( "left" )
         if side == nil then print( "Can't equip modem." ); return end
     end
-end )
+end
 
-device.addListener( "added", function( side, t )
+local function onDeviceAdded( side, t )
     if modem == nil and t == "modem" then
         --Must be a wireless modem
         local m = peripheral.wrap( side )
@@ -106,9 +92,9 @@ device.addListener( "added", function( side, t )
         sensor     = s
         sensorSide = side
     end
-end )
+end
 
-device.addListener( "removed", function( side, t )
+local function onDeviceRemoved( side, t )
     if t == "modem" and side == modemSide then
         modem     = nil
         modemSide = nil
@@ -116,53 +102,11 @@ device.addListener( "removed", function( side, t )
         sensor     = nil
         sensorSide = nil
     end
-end )
+end
 
-device.addListener( "rewrap", function( side, t )
+local function onDeviceRewrap( side, t )
     if t == "modem" and side == modemSide then
         modem = peripheral.wrap( side )
-    end
-end )
-
---Take inventory of attached items and peripherals.
-device.scan()
-item.scan()
-
---Turtles are mostly dumb terminals.
---They're not responsible for doing anything too complicated; a connected mainframe is responsible for this.
---But with no modem, this is a little difficult to do.
-if modem == nil then
-    print( "No modem found! Put one in my inventory." )
-end
-
---Queue an action. This will be run asynchronously by actionProc.
---callback is expected to be something callable.
---You may provide additional arguments if desired. These will be passed to callback when it is executed.
-local function runLater( callback, ... )
-    table.insert( pendingActions, { callback, ... } )
-
-    --If the event queue was empty before, let actionProc know we've got events available to process
-    if #pendingActions == 1 then os.queueEvent( eventActionAvailable ) end
-end
-
---Calls fn, passing any additional arguments given to this function to fn.
---If fn completes successfully, transmits an OK message to chOut containing whatever the function returns.
---If fn encounters an error, transmits an ERR message to chOut containing the error message.
---Note: fn may return as many values as necessary, but the return values must be nil, string, number, boolean, or table.
---Functions, threads, and userdata should not be returned. Returned tables should not contain these datatypes either.
-local function runAndReply( chOut, packetID, fn, ... )
-    local results = { pcall( fn, ... ) }
-    if results[1] then transmit( chOut, { ["c"] = enums.OK,  ["i"] = packetID, select( 2, unpack( results ) ) } )
-    else               transmit( chOut, { ["c"] = enums.ERR, ["i"] = packetID, [1] = results[2] } )
-    end
-end
-
---Returns a message handler that calls runAndReply asynchronously,
---passing chOut as the first argument, fn as the second, and any additional arguments provided to the returned handler as additional arguments to runAndReply.
---See runAndReply for more information.
-local function makeAsyncReplyHandler( fn )
-    return function( side, chIn, chOut, message, distance )
-        runLater( runAndReply, chOut, message.i, fn, unpack( message ) )
     end
 end
 
@@ -376,26 +320,6 @@ local function handleMessage( side, chIn, chOut, message, distance )
     return true
 end
 
---Separate coroutine so we don't block the event queue.
---turtle.forward(), turtle.attack(), etc internally call os.pullEvent( "turtle_response" ).
---This means that it discards any events that are not "turtle_response". If this were to be done on the event processing coroutine,
---it means we never see those events!
-local function actionProc()
-    while true do
-        --Wait for an action to become available
-        os.pullEvent( eventActionAvailable )
-        while #pendingActions > 0 do
-            local action = table.remove( pendingActions )
-
-            --pcall so we don't crash the program if something goes wrong...
-            local success, err = pcall( unpack( action ) )
-            if not success then
-                print( string.format( "Error performing action: %s", err ) )
-            end
-        end
-    end
-end
-
 --Event processing loop
 local function eventProc()
     while true do
@@ -417,8 +341,41 @@ local function eventProc()
         --number id
         elseif event == "timer" then
             if arg1 == announceTimer then announce() end
+        --number scancode, boolean is_held
+        elseif event == "key" then
+            --Q exits the program (I'd make it escape, but that's the key ComputerCraft uses to leave its GUI)
+            if arg1 == 16 then return end
         end
     end
 end
 
-parallel.waitForAny( eventProc, actionProc )
+function __init()
+    myID = os.getComputerID()
+end
+
+function __main()
+    item.addListener( "added", onItemAdded )
+    device.addListener( "added", onDeviceAdded )
+    device.addListener( "removed", onDeviceRemoved )
+    device.addListener( "rewrap", onDeviceRewrap )
+
+    --Take inventory of attached items and peripherals.
+    device.scan()
+    item.scan()
+
+    --Turtles are mostly dumb terminals.
+    --They're not responsible for doing anything too complicated; a connected mainframe is responsible for this.
+    --But with no modem, this is a little difficult to do.
+    if modem == nil then
+        print( "No modem found! Put one in my inventory." )
+    end
+
+    parallel.waitForAny( eventProc, async.taskProc )
+end
+
+function __cleanup()
+    item.removeListener( "added", onItemAdded )
+    device.removeListener( "added", onDeviceAdded )
+    device.removeListener( "removed", onDeviceRemoved )
+    device.removeListener( "rewrap", onDeviceRewrap )
+end

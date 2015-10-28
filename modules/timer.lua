@@ -20,8 +20,8 @@ function repeating( delay, callback )
     --NOTE: We have to forward declare f here because f references itself.
     --If we tried to do "local function f() ... end", f wouldn't see itself
     --because f becomes a local AFTER the function is defined...
-    --Same kind of deal with "t" here (our timer object). We need to update the ID
-    --every time the timer repeats, but the t doesn't exist until we create it below.
+    --Same kind of deal with extID here. We need to know the previous extID the timer was using
+    --every time the timer repeats, but extID isn't set until below the function's definition.
     local extID
     local f
     f = function()

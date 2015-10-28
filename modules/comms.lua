@@ -1,6 +1,5 @@
 require( "enums" )
 require( "vector" )
-require( "log" )
 require( "worker" )
 require( "util" )
 
@@ -28,7 +27,7 @@ end
 --Should be called when a modem is attached
 function onModemAttached( side )
     if modem == nil then
-        log.write( string.format( "Modem attached on side %s", side ) )
+        print( string.format( "Modem attached on side %s", side ) )
 
         modem = peripheral.wrap( side )
         modemSide = side
@@ -42,7 +41,7 @@ end
 --Should be called when a modem is removed
 function onModemDetached( side )
     if modem ~= nil and side == modemSide then
-        log.write( string.format( "Modem removed on side %s", side ) )
+        print( string.format( "Modem removed on side %s", side ) )
 
         modem     = nil
         modemSide = nil
@@ -62,32 +61,32 @@ end
 
 local handlers = {
     [ enums.ANNOUNCE ] = function( side, chIn, chOut, message, distance )
-        log.write( string.format( "Sending handshake to turtle %d.", chOut ) )
+        print( string.format( "Sending handshake to turtle %d.", chOut ) )
         transmit( chOut, enums.HANDSHAKE )
     end,
     [ enums.ACCEPT    ] = function( side, chIn, chOut, message, distance )
-        log.write( string.format( "Turtle %d accepted handshake.", chOut ) )
+        print( string.format( "Turtle %d accepted handshake.", chOut ) )
         worker.add( chOut )
     end,
     [ enums.REJECT    ] = function( side, chIn, chOut, message, distance )
-        log.write( string.format( "Turtle %d rejected handshake.", chOut ) )
+        print( string.format( "Turtle %d rejected handshake.", chOut ) )
     end,
     [ enums.OK        ] = function( side, chIn, chOut, message, distance )
-        log.write( string.format( "Turtle %d replies: %d OK: %s", chOut, message.i, util.join( message ) ) )
+        print( string.format( "Turtle %d replies: %d OK: %s", chOut, message.i, util.join( message ) ) )
     end,
     [ enums.ERR       ] = function( side, chIn, chOut, message, distance )
-        log.write( string.format( "Turtle %d replies: %d ERR: %s", chOut, tostring( message[1] ) ) )
+        print( string.format( "Turtle %d replies: %d ERR: %s", chOut, tostring( message[1] ) ) )
     end,
 }
 
 --Handles an incoming message
 function handle( side, chIn, chOut, message, distance )
-    log.write( string.format( "Side: %s Receiving Ch: %s Reply Ch: %s Message: %s Distance: %f", side, chIn, chOut, tostring( message ), distance ) )
-    log.write( string.format( "Reception is %f%%.", util.round( 1000 * signalStrength( distance ) ) / 10 ) )
+    print( string.format( "Side: %s Receiving Ch: %s Reply Ch: %s Message: %s Distance: %f", side, chIn, chOut, tostring( message ), distance ) )
+    print( string.format( "Reception is %f%%.", util.round( 1000 * signalStrength( distance ) ) / 10 ) )
 
     --The message must be in a format we understand
     if type( message ) ~= "table" or type( message.c ) ~= "number" then
-        log.write( "Received an unrecognized message." )
+        print( "Received an unrecognized message." )
         return false
     end
 
@@ -95,14 +94,14 @@ function handle( side, chIn, chOut, message, distance )
     local msgID = message.c
     local handler = handlers[ msgID ]
     if handler == nil then
-        log.write( string.format( "Unrecognized message with ID %d.", msgID ) )
+        print( string.format( "Unrecognized message with ID %d.", msgID ) )
         return false
     end
 
     --Call the handler; fail if an error occurs
     local success, err = pcall( handler, side, chIn, chOut, message, distance )
     if not success then
-        log.write( string.format( "Error handling message ID %d: %s", msgID, err ) )
+        print( string.format( "Error handling message ID %d: %s", msgID, err ) )
         return false
     end
 

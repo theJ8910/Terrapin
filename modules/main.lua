@@ -1,12 +1,13 @@
-require( "map" )
-require( "panel" )
-require( "mapPanel" )
-require( "graphics" )
-require( "vector" )
-require( "rect" )
 require( "timer" )
 require( "device" )
 require( "comms" )
+require( "graphics" )
+require( "panel" )
+require( "map" )
+require( "mapPanel" )
+require( "vector" )
+require( "rect" )
+require( "log" )
 
 local changed = false
 
@@ -41,7 +42,11 @@ function eventProc()
             --Q exits the program (I'd make it escape, but that's the key ComputerCraft uses to leave its GUI)
             if     arg1 == 16 then return
             --TEMP: tilde opens a console we can output log messages to
-            elseif arg1 == 41 then shell.openTab( "console.lua" )
+            elseif arg1 == 41 then
+                --NOTE: shell.openTab() blocks until the process you run yields for the first time,
+                --so we can be confident that log.set() has been called before running log.redirect().
+                shell.openTab( "console.lua" )
+                log.redirect()
             end
 
             rootPanel:keyDispatch( "onKeyDown", arg1, arg2 )
@@ -69,7 +74,7 @@ end
 
 --Display loop. Every few frames, we apply any necessary updates to the display.
 function display()
-    while true do        
+    while true do
         if changed then
             rootPanel:drawAll( g:getContext() )
             g:draw()
@@ -89,10 +94,30 @@ local function onPeripheralRemoved( side, t )
     if t == "modem" then comms.onModemDetached( side ) end
 end
 
+local function onPanelUpdated()
+    changed = true
+end
+
+--Initializes some things our program needs
+function __init()
+    --Make graphics, map, and map panel
+    g = new.graphics( term.current() )
+    m = new.map()
+    rootPanel = new.mapPanel( m )
+
+    local w, h = term.getSize()
+    rootPanel:setBounds( new.rect( 0, 0, w, h ) )
+end
+
 --Entry point for when we run the module
 function __main()
+    --Register listeners
+    device.addListener( "added",   onPeripheralAdded   )
+    device.addListener( "removed", onPeripheralRemoved )
+    device.scan()
+
     --When a panel is updated, tell us so we know to redraw
-    panel.addUpdateListener( function() changed = true end )
+    panel.addUpdateListener( onPanelUpdated )
 
     --Draw initial graphics
     rootPanel:drawAll( g:getContext() )
@@ -102,22 +127,13 @@ function __main()
     parallel.waitForAny( display, eventProc )
 end
 
---Initializes some things our program needs
-function __init()
-    device.addListener( "added",   onPeripheralAdded   )
-    device.addListener( "removed", onPeripheralRemoved )
-    device.scan()
-
-    --Make graphics, map, and map panel
-    local w, h = term.getSize()
-    g = new.graphics( w, h )
-    m = new.map()
-    rootPanel = new.mapPanel( m )
-    rootPanel:setBounds( new.rect( 0, 0, w, h ) )
-end
-
 --Cleans up our program before exiting from it
 function __cleanup()
+    --Remove listeners
+    device.removeListener( "added",   onPeripheralAdded   )
+    device.removeListener( "removed", onPeripheralRemoved )
+    panel.removeUpdateListener( onPanelUpdated )
+
     rootPanel:destroy()
     g:reset()
 end

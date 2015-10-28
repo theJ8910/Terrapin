@@ -2,9 +2,21 @@ require( "buffer" )
 
 local c = {}
 
---Init the graphics. Create a buffer w x h cells large.
-function c:init( w, h )
+--Init the graphics. Creates a buffer the same size as the given terminal.
+function c:init( terminal )
+    local w, h = terminal.getSize()
+    self.terminal = terminal
     self.b = new.buffer( w, h )
+end
+
+--Sets the terminal the graphics are rendered to.
+function c:setTerminal( terminal )
+    self.terminal = term
+end
+
+--Returns the terminal the graphics are rendered to.
+function c:getTerminal()
+    return self.terminal
 end
 
 --Resize the buffer
@@ -14,30 +26,33 @@ end
 
 --Fully redraws the screen
 function c:redraw()
-    local b = self.b
+    local terminal = self.terminal
+    local b        = self.b
+    local size     = b:getSize()
+    local w, h     = size.width, size.height
     local ch, fg, bg
-    local size = b:getSize()
-    for y = 1, size.height do
-        for x = 1, size.width do
-            term.setCursorPos( x, y )
-            ch, fg, bg = b:get( x-1, y-1 )
-            term.setTextColor( fg )
-            term.setBackgroundColor( bg )
-            term.write( ch )
+    for y = 1, h do
+        for x = 1, w do
+            terminal.setCursorPos( x, y )
+            ch, fg, bg = b:get( x - 1, y - 1 )
+            terminal.setTextColor( fg )
+            terminal.setBackgroundColor( bg )
+            terminal.write( ch )
         end
     end
 end
 
 --Draws changes to the screen
 function c:draw()
+    local terminal = self.terminal
     local b = self.b
     local ch, fg, bg
     b:forEachUpdate( function( x, y )
         ch, fg, bg = b:get( x, y )
-        term.setCursorPos( x + 1, y + 1 )
-        term.setTextColor( fg )
-        term.setBackgroundColor( bg )
-        term.write( ch )
+        terminal.setCursorPos( x + 1, y + 1 )
+        terminal.setTextColor( fg )
+        terminal.setBackgroundColor( bg )
+        terminal.write( ch )
     end )
     b:clearUpdates()
 end
@@ -46,10 +61,11 @@ end
 --This function positions the cursor at the top-left, sets foreground and background colors
 --to their defaults (white and black respectively), then clears the screen.
 function c:reset()
-    term.setCursorPos( 1, 1 )
-    term.setTextColor( colors.white )
-    term.setBackgroundColor( colors.black )
-    term.clear()
+    local terminal = self.terminal
+    terminal.setCursorPos( 1, 1 )
+    terminal.setTextColor( colors.white )
+    terminal.setBackgroundColor( colors.black )
+    terminal.clear()
 end
 
 --Returns a context for the buffer that you can draw with
