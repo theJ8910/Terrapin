@@ -1,4 +1,4 @@
-require( "vector" )
+require( "math2.vector" )
 require( "orient" )
 require( "serialize" )
 require( "ids" )

@@ -1,5 +1,12 @@
 --Prints a human readable version of the given table, showing 10 rows at a time.
-function printTable( tbl )
+--It does not print subtables (i.e. it is not recursive).
+--writeFn is an optional function that will be used to print the table.
+--    This should be a function that takes the text to print as its sole argument.
+--    This function should NOT append a newline to the output (i.e. you should use something like io.write instead of print).
+--    writeFn defaults to io.write.
+function printTable( tbl, writeFn )
+    if writeFn == nil then writeFn = io.write end
+
     local keyWidth   = 5
     local valueWidth = 5
     for k,v in pairs( tbl ) do
@@ -9,19 +16,62 @@ function printTable( tbl )
     
     local count = 0
     for k,v in pairs( tbl ) do
-        io.write( column( tostring( k ), keyWidth ) )
-        io.write( " | " )
-        io.write( column( type( v ), 8 ) )
-        io.write( " | " )
+        writeFn( column( tostring( k ), keyWidth ) )
+        writeFn( " | " )
+        writeFn( column( type( v ), 8 ) )
+        writeFn( " | " )
         if type( v ) ~= "table" then
-            io.write( column( tostring( v ), valueWidth ) )
+            writeFn( column( tostring( v ), valueWidth ) )
         else
-            io.write( "[table]" )
+            writeFn( "[table]" )
         end
-        io.write( "\n" )
+        writeFn( "\n" )
         count = count + 1
         if count == 10 then io.read(); count = 0 end
     end
+end
+
+--Recursive step of copyTable.
+--See copyTable for more information.
+local function copyTableRecursive( tbl, references )
+    local copy = {}
+    references[ tbl ] = copy
+
+    for k,v in pairs( tbl ) do
+        --Recursively copy table
+        if type( v ) == "table" then
+            --Have we copied the same table once before?
+            --If so, this is a shared table. Return the copy we've made before. Not only does this save work,
+            --but it ensures that tables that were shared in the original will be shared in the copy.
+            local reference = references[ v ]
+            if ref ~= nil then copy[ k ] = reference
+            else               copy[ k ] = copyTableRecursive( v, references )
+            end
+        --Copy a normal key
+        else
+            copy[ k ] = v
+        end
+    end
+
+    return copy
+end
+
+--Returns a copy of the given table.
+--Subtables are copied recursively. Any shared tables will be copied and shared as well.
+--Currently, metatables are not copied.
+--e.g. this is guaranteed:
+--    local shared = {}
+--    local tbl = {
+--        a = shared,
+--        b = shared
+--    }
+--    print( tbl.a  == tbl.b  ) --prints true
+--
+--    local copy = util.copyTable( tbl )
+--    print( copy.a == copy.b ) --prints true
+function copyTable( tbl )
+    local references = {}
+    return copyTableRecursive( tbl, references )
 end
 
 --Returns a string that is colWidth characters wide.

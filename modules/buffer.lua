@@ -1,5 +1,5 @@
-require( "point" )
-require( "rect" )
+require( "math2.point" )
+require( "math2.rect" )
 require( "util" )
 require( "ids" )
 require( "serialize" )
@@ -102,10 +102,11 @@ function c:clearUpdates()
     end
 end
 
-function c:setSize( size )
-    local newCount = size.width * size.height
+function c:setSize( w, h )
+    local newCount = w * h
     local oldCount = self.size.width * self.size.height
-    self.size = size
+    self.size.width  = w
+    self.size.height = h
 
     --Clear buffer
     for i = 0, newCount - 1 do

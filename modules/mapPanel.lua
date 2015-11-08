@@ -1,5 +1,5 @@
-require( "vector" )
-require( "panel" )
+require( "ui.panel" )
+require( "math2.vector" )
 require( "timer" )
 
 local builtinBlocks = {
@@ -27,7 +27,137 @@ local builtinBlocks = {
         ["fg"] = colors.yellow,
         ["bg"] = colors.black
     },
+    [4] = {
+        ["name"] = "Water",
+        ["char"] = "~",
+        ["fg"]   = colors.cyan,
+        ["bg"]   = colors.blue
+    },
+    [5] = {
+        ["name"] = "Lava",
+        ["char"] = "~",
+        ["fg"]   = colors.orange,
+        ["bg"]   = colors.red
+    },
+    [6] = {
+        ["name"] = "Dirt",
+        ["char"] = " ",
+        ["fg"]   = colors.lightGray,
+        ["bg"]   = colors.brown
+    },
+    [7] = {
+        ["name"] = "Grass",
+        ["char"] = " ",
+        ["fg"]   = colors.lime,
+        ["bg"]   = colors.green
+    },
+    [8] = {
+        ["name"] = "Stone",
+        ["char"] = "#",
+        ["fg"]   = colors.lightGray,
+        ["bg"]   = colors.gray
+    },
+    [9] = {
+        ["name"] = "Cobblestone",
+        ["char"] = "%",
+        ["fg"]   = colors.lightGray,
+        ["bg"]   = colors.gray
+    },
+    [10] = {
+        ["name"] = "Coal Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.black,
+        ["bg"]   = colors.gray
+    },
+    [11] = {
+        ["name"] = "Iron Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.orange,
+        ["bg"]   = colors.gray
+    },
+    [12] = {
+        ["name"] = "Gold Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.yellow,
+        ["bg"]   = colors.gray
+    },
+    [13] = {
+        ["name"] = "Diamond Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.cyan,
+        ["bg"]   = colors.gray
+    },
+    [14] = {
+        ["name"] = "Lapis Lazuli Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.blue,
+        ["bg"]   = colors.gray
+    },
+    [15] = {
+        ["name"] = "Redstone Ore",
+        ["char"] = "#",
+        ["fg"]   = colors.red,
+        ["bg"]   = colors.gray
+    },
+    [16] = {
+        ["name"] = "Oak Wood",
+        ["char"] = "O",
+        ["fg"]   = colors.yellow,
+        ["bg"]   = colors.brown
+    },
+    [17] = {
+        ["name"] = "Oak Leaves",
+        ["char"] = "$",
+        ["fg"]   = colors.lime,
+        ["bg"]   = colors.green
+    },
+    [18] = {
+        ["name"] = "Oak Wood Planks",
+        ["char"] = "=",
+        ["fg"]   = colors.yellow,
+        ["bg"]   = colors.brown
+    },
+    [19] = {
+        ["name"] = "Torch",
+        ["char"] = "i",
+        ["fg"]   = colors.yellow,
+        ["bg"]   = colors.black
+    },
+    [20] = {
+        ["name"] = "Chest",
+        ["char"] = "X",
+        ["fg"]   = colors.black,
+        ["bg"]   = colors.brown
+    },
+    [21] = {
+        ["name"] = "Computer",
+        ["char"] = ">",
+        ["fg"]   = colors.white,
+        ["bg"]   = colors.gray
+    },
+    [22] = {
+        ["name"] = "Advanced Computer",
+        ["char"] = ">",
+        ["fg"]   = colors.white,
+        ["bg"]   = colors.yellow
+    }
 }
+
+local dirtChars  = { { 0.50, " " }, { 0.16, "." }, { 0.16, "," },  { 0.16, "'" } }
+local grassChars = { { 0.50, " " }, { 0.16, "`" }, { 0.16, "\"" }, { 0.16, "'" } }
+
+--Pick a random character based on x, y, z from choices
+local function randomChar( x, y, z, choices )
+    math.randomseed( 1249*x + 5984*y + 2952*z )
+    local r = math.random()
+    local s = 0
+    for i,v in ipairs( choices ) do
+        s = s + v[1]
+        if r < s then return v[2] end
+    end
+    return choices[#choices][2]
+end
+--local liquidAnim = { "_","=","-","~"," " }
 
 --Returns the character, foreground color, and background color of a block with the given ID.
 local function getRenderInfo( blockID )
@@ -52,13 +182,14 @@ function c:init( m )
     self.camera = new.vector( 0, 0, 0 )
     self.blink = true
 
+    self.dragging     = false
     self.cameraWasAt  = new.point( 0, 0 )
     self.draggingFrom = new.point( 0, 0 )
     
     --Make the controls on the map panel blink
     self.timerid = timer.repeating( 0.5, function()
         self.blink = not self.blink
-        panel.needsUpdate()
+        self:redraw()
     end )
 
     --When a visible tile on the map changes, tell us so we know the map needs to be redrawn
@@ -73,7 +204,7 @@ function c:init( m )
             if pos.x >= x and pos.x < x + w and
                pos.z >= z and pos.z < z + h and
                pos.y == pos.y then
-                panel.needsUpdate()
+                self:redraw()
             end
         end
     )
@@ -91,16 +222,20 @@ function c:getCamera()
     return self.camera
 end
 
+function c:isFocusable()
+    return true
+end
+
 local keyPressHandlers = {
-    [203] = function( self ) self.camera.x = self.camera.x - 1; panel.needsUpdate() end,    --Left arrow
-    [205] = function( self ) self.camera.x = self.camera.x + 1; panel.needsUpdate() end,    --Right arrow
-    [200] = function( self ) self.camera.z = self.camera.z - 1; panel.needsUpdate() end,    --Up arrow
-    [208] = function( self ) self.camera.z = self.camera.z + 1; panel.needsUpdate() end,    --Down arrow
-    [51]  = function( self ) self.camera.y = math.min( self.camera.y + 1, 255 ); panel.needsUpdate() end,    --Left angle bracket
-    [52]  = function( self ) self.camera.y = math.max( self.camera.y - 1, 0   ); panel.needsUpdate() end,    --Right angle bracket
+    [203] = function( self ) self.camera.x = self.camera.x - 1; self:redraw() end,    --Left arrow
+    [205] = function( self ) self.camera.x = self.camera.x + 1; self:redraw() end,    --Right arrow
+    [200] = function( self ) self.camera.z = self.camera.z - 1; self:redraw() end,    --Up arrow
+    [208] = function( self ) self.camera.z = self.camera.z + 1; self:redraw() end,    --Down arrow
+    [51]  = function( self ) self.camera.y = math.min( self.camera.y + 1, 255 ); self:redraw() end,    --Left angle bracket
+    [52]  = function( self ) self.camera.y = math.max( self.camera.y - 1, 0   ); self:redraw() end,    --Right angle bracket
 }
 
-function c:onKeyDown( scancode )
+function c:onKeyDown( scancode, held )
     local handler = keyPressHandlers[ scancode ]
     if handler == nil then return false end
     
@@ -109,15 +244,19 @@ function c:onKeyDown( scancode )
 end
 
 function c:onMouseDown( x, y, button )
+    if button ~= 1 then return false end --1 = left mouse button
+
     local w, h = self:getBounds():getSize()
-    local hw = math.floor( w/2 )
-    local hh = math.floor( h/2 )
+    local hw = math.floor( (w-1)/2 )
+    local hh = math.floor( (h-1)/2 )
 
     if     x == hw     and y == 0     then keyPressHandlers[200]( self )
     elseif x == hw     and y == h - 1 then keyPressHandlers[208]( self )
     elseif x == 0      and y == hh    then keyPressHandlers[203]( self )
     elseif x == w - 1  and y == hh    then keyPressHandlers[205]( self )
     else
+        self:setMouseCapture( true )
+        self.dragging       = true
         self.cameraWasAt.x  = self.camera.x
         self.cameraWasAt.y  = self.camera.z
         self.draggingFrom.x = x
@@ -126,10 +265,19 @@ function c:onMouseDown( x, y, button )
     return true
 end
 
+function c:onMouseUp( x, y, button )
+    if button ~= 1 or not self.dragging then return false end --1 = left mouse button
+    self:setMouseCapture( false )
+    self.dragging = false
+    return true
+end
+
 function c:onMouseDrag( x, y, button )
+    if button ~= 1 or not self.dragging then return false end --1 = left mouse button
+
     self.camera.x = self.cameraWasAt.x + self.draggingFrom.x - x
     self.camera.z = self.cameraWasAt.y + self.draggingFrom.y - y
-    panel.needsUpdate()
+    self:redraw()
     return true
 end
 
@@ -148,7 +296,11 @@ function c:draw( context )
     local px, pz         = xbegin, zbegin
     for y=0, h-1 do
         for x=0, w-1 do
-            local ch, fg, bg = getRenderInfo( self.map:getBlock( px, cy, pz ) )
+            local block = self.map:getBlock( px, cy, pz )
+            local ch, fg, bg = getRenderInfo( block )
+            if     block == 6 then ch = randomChar( px, cy, pz, dirtChars  )
+            elseif block == 7 then ch = randomChar( px, cy, pz, grassChars )
+            end
             context:setCharacter( ch )
             context:setForeground( fg )
             context:setBackground( bg )
@@ -167,8 +319,8 @@ function c:draw( context )
 
     --Controls
     if self.blink then
-        local hw = math.floor( w / 2 )
-        local hh = math.floor( h / 2 )
+        local hw = math.floor( (w-1)/2 )
+        local hh = math.floor( (h-1)/2 )
         context:setForeground( colors.red   )
         context:setBackground( colors.black )
 

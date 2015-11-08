@@ -5,6 +5,7 @@ local c = {}
 --Init the graphics. Creates a buffer the same size as the given terminal.
 function c:init( terminal )
     local w, h = terminal.getSize()
+    
     self.terminal = terminal
     self.b = new.buffer( w, h )
 end
@@ -17,6 +18,11 @@ end
 --Returns the terminal the graphics are rendered to.
 function c:getTerminal()
     return self.terminal
+end
+
+function c:onTerminalResized()
+    local w, h = self.terminal.getSize()
+    self.b:setSize( w, h )
 end
 
 --Resize the buffer

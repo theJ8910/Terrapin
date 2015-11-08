@@ -1,5 +1,5 @@
 require( "chunk" )
-require( "vector" )
+require( "math2.vector" )
 require( "util" )
 require( "serialize" )
 require( "ids" )

@@ -2,14 +2,12 @@ require( "timer" )
 require( "device" )
 require( "comms" )
 require( "graphics" )
-require( "panel" )
+require( "ui.rootPanel" )
+require( "ui.box" )
 require( "map" )
 require( "mapPanel" )
-require( "vector" )
-require( "rect" )
+require( "math2.rect" )
 require( "log" )
-
-local changed = false
 
 local g
 local m
@@ -30,7 +28,6 @@ function eventProc()
     --There seems to be no danger in events being lost so long as one coroutine is available to process them; therefore the event loop coroutine should only yield here in this function.
     while true do
         local event, arg1, arg2, arg3, arg4, arg5 = os.pullEvent()
-        --number intID
         --string side, number receiving channel, number reply channel, any message, number distance
         if event == "modem_message" then
             comms.handle( arg1, arg2, arg3, arg4, arg5 )
@@ -49,25 +46,35 @@ function eventProc()
                 log.redirect()
             end
 
-            rootPanel:keyDispatch( "onKeyDown", arg1, arg2 )
+            rootPanel:keyboardDispatch( "onKeyDown", arg1, arg2 )
         --number scancode, boolean is_held
         elseif event == "key_up" then
-            rootPanel:keyDispatch( "onKeyUp", arg1, arg2 )
+            rootPanel:keyboardDispatch( "onKeyUp", arg1, arg2 )
         --number button, number x, number y
         elseif event == "mouse_click" then
-            rootPanel:rootMouseDispatch( "onMouseDown", arg2 - 1, arg3 - 1, arg1 )
+            rootPanel:mouseDispatch( "onMouseDown", arg2 - 1, arg3 - 1, arg1 )
         --number button, number x, number y
         elseif event == "mouse_up" then
-            rootPanel:rootMouseDispatch( "onMouseUp", arg2 - 1, arg3 - 1, arg1 )
+            rootPanel:mouseDispatch( "onMouseUp", arg2 - 1, arg3 - 1, arg1 )
         --number button, number x, number y
         elseif event == "mouse_drag" then
-            rootPanel:rootMouseDispatch( "onMouseDrag", arg2 - 1, arg3 - 1, arg1 )
+            rootPanel:mouseDispatch( "onMouseDrag", arg2 - 1, arg3 - 1, arg1 )
         --number dir (-1=up,1=down), number x, number y
         elseif event == "mouse_scroll" then
-            rootPanel:rootMouseDispatch( "onMouseScroll", arg2 - 1, arg3 - 1, arg1 )
+            rootPanel:mouseDispatch( "onMouseScroll", arg2 - 1, arg3 - 1, arg1 )
         --string side
         elseif event == "peripheral" or event == "peripheral_detach" then
             device.update( arg1 )
+        --string side
+        elseif event == "monitor_resize" then
+            --TODO
+        --no args
+        elseif event == "term_resize" then
+            --NOTE: A "term_resize" event is received when the terminal for _the tab the program is running in_ resizes.
+            --We currently assume the UI is being rendered to this terminal.
+            --If our UI is on a monitor, or being rendered to a different tab's terminal, this becomes more complicated.
+            g:onTerminalResized()
+            rootPanel:onTerminalResized()
         end
     end
 end
@@ -75,10 +82,13 @@ end
 --Display loop. Every few frames, we apply any necessary updates to the display.
 function display()
     while true do
-        if changed then
+        --Update layout if necessary
+        rootPanel:layout()
+
+        --Redraw panels if necessary
+        if rootPanel:getNeedsRedraw() then
             rootPanel:drawAll( g:getContext() )
             g:draw()
-            changed = false
         end
 
         --Update framerate as necessary
@@ -94,19 +104,17 @@ local function onPeripheralRemoved( side, t )
     if t == "modem" then comms.onModemDetached( side ) end
 end
 
-local function onPanelUpdated()
-    changed = true
-end
-
 --Initializes some things our program needs
 function __init()
-    --Make graphics, map, and map panel
-    g = new.graphics( term.current() )
-    m = new.map()
-    rootPanel = new.mapPanel( m )
+    --Init graphics & UI
+    local term = term.current()
+    g = new.graphics( term )
+    rootPanel = new.rootPanel( term )
 
-    local w, h = term.getSize()
-    rootPanel:setBounds( new.rect( 0, 0, w, h ) )
+    --Make map and map panel
+    m = new.map()
+    mp = new.mapPanel( m )
+    mp:setParent( rootPanel )
 end
 
 --Entry point for when we run the module
@@ -115,9 +123,6 @@ function __main()
     device.addListener( "added",   onPeripheralAdded   )
     device.addListener( "removed", onPeripheralRemoved )
     device.scan()
-
-    --When a panel is updated, tell us so we know to redraw
-    panel.addUpdateListener( onPanelUpdated )
 
     --Draw initial graphics
     rootPanel:drawAll( g:getContext() )
@@ -132,7 +137,6 @@ function __cleanup()
     --Remove listeners
     device.removeListener( "added",   onPeripheralAdded   )
     device.removeListener( "removed", onPeripheralRemoved )
-    panel.removeUpdateListener( onPanelUpdated )
 
     rootPanel:destroy()
     g:reset()

@@ -1,4 +1,4 @@
-require( "vector" )
+require( "math2.vector" )
 
 EAST  = 0
 NORTH = 1

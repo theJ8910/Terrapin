@@ -6,7 +6,7 @@ local intIDs    = {} --external ID -> CC timer ID
 --Returns a timer ID. you can use this with timer.cancel (NOT os.cancelTimer) to cancel the timer.
 function start( delay, callback )
     local intID = os.startTimer( delay, callback )
-    local extID = #intIDs
+    local extID = #intIDs + 1
     callbacks[ intID ] = callback
     extIDs[ intID ]    = extID
     intIDs[ extID ]    = intID
@@ -45,7 +45,7 @@ function repeating( delay, callback )
 
     --Start the timer for the first time
     local intID = os.startTimer( delay, f )
-          extID = #intIDs
+          extID = #intIDs + 1
     callbacks[ intID ]  = f
     extIDs[ intID ]     = extID
     intIDs[ extID ]     = intID
@@ -60,8 +60,8 @@ function cancel( extID )
 
     os.cancelTimer( intID )
     callbacks[ intID ] = nil
-    extIDs[ intID ] = nil
-    intIDs[ extID ] = nil
+    extIDs[ intID ]    = nil
+    intIDs[ extID ]    = nil
 end
 
 --Your application should call this in your event loop to handle a timer event.
@@ -75,8 +75,8 @@ function handle( intID )
         --Remove timer
         local extID = extIDs[ intID ]
         callbacks[ intID ] = nil
-        extIDs[ intID ] = nil
-        intIDs[ extID ] = nil
+        extIDs[ intID ]    = nil
+        intIDs[ extID ]    = nil
 
         --Call the callback
         fn()

@@ -1,5 +1,5 @@
 require( "enums" )
-require( "vector" )
+require( "math2.vector" )
 require( "worker" )
 require( "util" )
 
